@@ -1,28 +1,34 @@
 import threading, Queue
 from datetime import datetime
-
+from util import Counter, PipeQueue, chooseFromDistribution
+from math import exp
 
 class Agent(threading.Thread):
-	def __init__(self, name, grid, message_server, opt):
+	def __init__(self, name, fg, environment, message_server, opt):
 		threading.Thread.__init__(self)
 		self.setDaemon(True)
 		self.message_queue = Queue.Queue()
 		self.message_server = message_server
 		self.terminate = False
 		self.opt = opt
-		self.grid = grid
+		self.fg = fg
 		self.name = name
-
-		self.proposal = None
-		if self.grid.agents[self.name]['is_seller']:
-			self.proposal = {'price':self.grid.agents[self.name]['price'], 'amount':self.grid.agents[self.name]['max_delivery']}
-		else:
-			self.proposal = {'price':self.grid.agents[self.name]['bid'], 'amount':self.grid.agents[self.name]['max_demand']}
-		
+		self.environment = environment
+		self.updated = False
+		self.relayNode = self.fg.nodes[self.name]
+		self.training = True
+		self.evalues = Counter()
+		self.counter = Counter()
+		self.convergence_queue = PipeQueue(self.opt['convergence_size'])
+		self.converged = False
+		self.temperature = self.opt['temperature']
+		self.tests = []
 	
 	def run(self):
 		while not self.terminate:
 			self.read_message()
+			self.process()
+
 	def receive(self, sender, content):
 		self.message_queue.put((sender, content))
 	
@@ -34,9 +40,9 @@ class Agent(threading.Thread):
 			sender, m = self.message_queue.get()
 			if sender == 'auctioneer':
 				if m['type'] == 'submission':
-					self.send('auctioneer', {'type':'submission', 'content':self.proposal})
+					pass #self.send('auctioneer', {'type':'submission', 'content':self.proposal})
 				elif m['type'] == 'result':
-					self.update_proposal(m['content']['price'], m['content']['others-actions'], m['content']['in_sellers'], m['content']['in_buyers'])
+					pass #self.update_proposal(m['content']['price'], m['content']['others-actions'], m['content']['in_sellers'], m['content']['in_buyers'])
 				elif m['type'] == 'price':
 					pass #self.calculate_utility(m['content'])
 				elif m['type'] == 'out':
@@ -46,45 +52,67 @@ class Agent(threading.Thread):
 			else:
 				raise Exception('Invalid sender '+ sender)
 
-	def update_proposal(self, price, actions, in_sellers, in_buyers):
-		amount = self.proposal['amount']
-		amount = (1 - self.opt['omega']) * self.best_response(actions, in_sellers, in_buyers) + self.opt['omega'] * amount
-		self.proposal['amount'] = amount
+	def process(self):
+		if not self.updated:
+			old_values = tuple([self.relayNode.resources[r].last_generation for r in self.relayNode.resources])
+			new_values = tuple([self.relayNode.resources[r].get_generation() for r in self.relayNode.resources])
+			time_step = self.environment.get_time()
 
-	def utility(self, price, actions, in_sellers, in_buyers):
-		utility = 0
-		if self.grid.agents[self.name]['is_seller']:
-			amount = self.quantity(actions, in_sellers, in_buyers)
-			flow = amount / len(in_buyers)
-			flow_cost = sum([flow*self.grid.get_transfer_cost(self.name, b) for b in in_buyers])
-			utility = (price - self.proposal['price']) * amount - flow_cost
-		else:
-			utility = (self.proposal['price'] - price) * amount
-		return utility
+			state = (time_step, old_values)
+			nstate = (time_step+1, new_values)
 
-	def best_response(self, actions, in_sellers, in_buyers):
-		return self.quantity(actions, in_sellers, in_buyers)
+			if self.training and not self.converged:
+				self.add_transition(state, nstate) 
 
-	def quantity(self, actions, in_sellers, in_buyers):
-		demand = 0
-		for b in in_buyers:
-			demand += self.grid.agents[b]['max_demand']
+				self.counter[(state, nstate)] += 1
+				evalue = 0
+				probs = self.calculate_probs(nstate)
+				for ns in probs:
+					evalue += probs[ns] * self.evalues[(nstate, ns)]
 
-		consomption = 0
-		for s in in_sellers:
-			if s == self.name:
-				consomption += self.proposal['amount']
-			else:
-				consomption += actions[s]
+				self.evalues[(state, nstate)] = self.opt['beta'] * evalue
 
-		quantity = 0
-		if demand >= consomption:
-			quantity = self.proposal['amount']
-		else:
-			count = len(in_sellers)
-			if count > 1:
-				count -= 1
-			beta = (consomption - demand) / count
-			quantity = max([0, self.proposal['amount'] - beta])
-			
-		return quantity
+				self.convergence_queue.push(sum(self.evalues.values()))
+
+				self.converged = False
+				if self.convergence_queue.is_full()
+					if self.convergence_queue.get_standard_deviation() <= self.opt['standard_deviation']:
+						self.converged = True
+
+				self.temperature *= self.opt['decay']
+			else:	# test
+				probs = self.calculate_probs(state, self.opt['test-temperature'])
+				pnstate = chooseFromDistribution(probs)
+
+				self.tests.append(pnstate == nstate)
+
+			self.updated = True
+
+	def add_transition(self, s, ns):
+		if s not in self.nextStates:
+			self.nextStates[s] = set()
+		self.nextStates[s].add(ns)
+
+	def next_states(self, s):
+		nextstates = []
+		if s in self.nextStates:
+			nextstates = list(self.nextStates[s])
+		return nextstates
+
+	def calculate_probs(self, s, temperature=None):
+		if temperature is None:
+			temperature = self.temperature
+
+		probs = {}
+		b = 0
+		for ns in self.next_states(s):
+			probs[ns] = 0
+			if self.counter[(s,ns)] > 0:
+				probs[ns] = exp(self.counter[(s,ns)]/temperature)
+				b += probs[ns]
+
+		for ns in probs:
+			if b != 0:
+				probs[ns] = probs[ns] / b
+
+		return probs

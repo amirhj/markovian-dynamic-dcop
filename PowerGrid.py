@@ -19,21 +19,24 @@ class Generator:
 		self.id = id
 		self.maxValue = maxValue
 		self.CO = CO
+		self.value = 0
 
 
 class Resource:
-	def __init__(self, id, values, transitions):
+	def __init__(self, id, transitions, environment):
 		self.id = id
-		self.values = values
 		self.transitions = transitions
-		self.periodLen = len(values)
+		self.environment = environment
+		self.last_generation = 0
 
-	def getValue(self, time):
-		timeStep = time % self.periodLen
-		nextTimeStep = (time + 1) % self.periodLen
-		valueIndex = util.chooseFromDistribution(self.transitions[timeStep])
-		if valueIndex is not None:
-			value = self.values[nextTimeStep][valueIndex]
-		else:
-			value = 0
-		return value
+	def get_generation(self):
+		timePeriod = self.environment.get_time()
+		tran = self.transitions[timePeriod]
+		dist = {}
+		for s in tran:
+			if s['from'] == self.last_generation:
+				for ns in s['to']:
+					dist[ns['to']] = ns['prob']
+				break
+		self.last_generation = util.chooseFromDistribution(dist)
+		return self.last_generation

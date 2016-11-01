@@ -1,11 +1,13 @@
 import json, threading, random, sys, copy
 from PowerGrid import *
-
+from environment import Environment
 
 class FactorGraph:
 	def __init__(self, opt):
 		self.vars = {}
 		self.funcs = {}
+
+		self.environment = None
 
 		self.grid = None
 		self.nodes = {}
@@ -23,13 +25,14 @@ class FactorGraph:
 	def load(self, graph):
 		self.grid = json.loads(open(graph, 'r').read())
 
+		self.environment = Environment(self.grid['options']['number-of-time-steps'])
+
 		for g in self.grid['generators']:
 			ge = self.grid['generators'][g]
 			self.generators[g] = Generator(g, ge['maxValue'], ge['CO'])
 
 		for r in self.grid['resources']:
-			re = self.grid['resources'][r]
-			self.resources[r] = Resource(r, re['values'], re)
+			self.resources[r] = Resource(r, self.grid['resources'][r], self.environment)
 
 		self.loads = self.grid['loads']
 		
@@ -74,11 +77,11 @@ class FactorGraph:
 
 			generators = []
 			if 'generators' in self.grid['nodes'][n]:
-				generators = self.grid['nodes'][n]['generators']
+				generators = {g:self.generators[g] for g in self.grid['nodes'][n]['generators']}
 
 			resources = []
 			if 'resources' in self.grid['nodes'][n]:
-				resources = self.grid['nodes'][n]['resources']
+				resources = {r:self.resources[r] for r in self.grid['nodes'][n]['resources']}
 
 			loads = []
 			if 'loads' in self.grid['nodes'][n]:
