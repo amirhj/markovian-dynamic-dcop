@@ -1,6 +1,6 @@
 class Scheduler:
-	def __init__(self, grid, agents, environment, message_server, opt):
-		self.grid = grid
+	def __init__(self, fg, agents, environment, message_server, opt):
+		self.fg = fg
 		self.agents = agents
 		self.opt = opt
 		self.message_server = message_server
@@ -14,52 +14,68 @@ class Scheduler:
 		for a in self.agents:
 			self.agents[a].start()
 
-		self.auctioneer.start()
-
 	def run(self):
 		print "training..."
 		numTimeSteps = 0
 		terminate = False
 		while not terminate:
-			all_updated = True
-			for a in self.agents:
-				if not self.agents[a].updated:
-					all_updated = False
-					break
-			if all_updated:
-				self.environment.next_time_step()
-
 			terminate = True
 			for a in self.agents:
-				if self.agents[a].converged == False:
+				if not self.agents[a].converged:
 					terminate = False
 					break
+
+			if not terminate:
+				all_updated = False
+				while not all_updated:
+					all_updated = True
+					for a in self.agents:
+						if not self.agents[a].updated:
+							all_updated = False
+							break
+
+				self.environment.next_time_step()
+				for a in self.agents:
+					self.agents[a].updated = False
 
 			numTimeSteps += 1
 
 		print "training terminated in", numTimeSteps, "time steps\n"
 
-		print "testing..."
+		# reseting time
 		self.environment.reset()
-		for i in xrange(self.opt['tests']):
-			print "%d: " % (i+1,),
-			all_updated = True
-			for a in self.agents:
-				if not self.agents[a].updated:
-					all_updated = False
-					break
-			if all_updated:
-				self.environment.next_time_step()
+		for r in self.fg.resources:
+			self.fg.resources[r].last_generation = 0
+		for a in self.agents:
+			self.agents[a].training = False
+			
+		print "testing..."
 
-				all_correct = True
+		for i in range(self.opt['tests']):
+			print "%d: " % (i+1,),
+
+			for a in self.agents:
+				self.agents[a].updated = False
+
+			all_updated = False
+			while not all_updated:
+				all_updated = True
 				for a in self.agents:
-					if not self.agents[a].tests[-1]:
-						all_correct = False
-						print "%s:Failed, " % (s,),
-				
-				if all_correct:
-					print "Good",
-				print
+					if not self.agents[a].updated:
+						all_updated = False
+						break
+
+			all_correct = True
+			for a in self.agents:
+				if not self.agents[a].tests[-1]:
+					all_correct = False
+					print "%s:Failed, " % (a,),
+
+			if all_correct:
+				print "Good",
+			print
+
+			self.environment.next_time_step()
 
 		print 'fert'
 		

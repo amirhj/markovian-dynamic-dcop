@@ -7,7 +7,7 @@ class Environment:
 		return self.time_step
 
 	def next_time_step(self):
-		self.time_step = (self.tp + 1) % self.num_time_steps
+		self.time_step = (self.time_step + 1) % self.num_time_steps
 
 	def reset(self):
 		self.time_step = 0

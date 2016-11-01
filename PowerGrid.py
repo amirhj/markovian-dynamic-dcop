@@ -1,4 +1,4 @@
-import util
+import util, sys
 
 
 class RelayNode:
@@ -38,5 +38,8 @@ class Resource:
 				for ns in s['to']:
 					dist[ns['to']] = ns['prob']
 				break
+		
+		#print self.last_generation, dist, timePeriod
 		self.last_generation = util.chooseFromDistribution(dist)
+		#print self.last_generation, 'GGGGGGGGG'
 		return self.last_generation

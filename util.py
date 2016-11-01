@@ -404,7 +404,7 @@ def nSample(distribution, values, n):
 	return samples
 
 def sample(distribution, values = None):
-	if type(distribution) == Counter:
+	if type(distribution) == Counter or type(distribution) == dict:
 		items = sorted(distribution.items())
 		distribution = [i[1] for i in items]
 		values = [i[0] for i in items]
