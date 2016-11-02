@@ -12,7 +12,7 @@ opt_pattern = { '--temperature': {'name': 'temperature', 'type': 'float', 'defau
 				'--gamma': {'name': 'gamma', 'type': 'float', 'default': 0.8},
 				'-t': {'name': 'tests', 'type': 'int', 'default': 20},
 				'-c': {'name': 'convergence_size', 'type': 'int', 'default': 30},
-				'-s': {'name': 'standard_deviation', 'type': 'float', 'default': 2.0},
+				'-s': {'name': 'standard_deviation', 'type': 'float', 'default': 1.0},
 				'--beta': {'name': 'beta', 'type': 'float', 'default': 0.8}
 				}
 arg = ArgParser(sys.argv[2:], opt_pattern)

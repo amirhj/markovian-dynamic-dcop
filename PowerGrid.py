@@ -39,7 +39,11 @@ class Resource:
 					dist[ns['to']] = ns['prob']
 				break
 		
-		#print self.last_generation, dist, timePeriod
-		self.last_generation = util.chooseFromDistribution(dist)
-		#print self.last_generation, 'GGGGGGGGG'
+		try:
+			ss = self.last_generation
+			self.last_generation = util.chooseFromDistribution(dist)
+		except Exception as e:
+			print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
+			print timePeriod, ss, self.last_generation, dist
+			print '****************************'
 		return self.last_generation

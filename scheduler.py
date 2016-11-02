@@ -1,3 +1,6 @@
+import sys, os, json
+from datetime import datetime
+
 class Scheduler:
 	def __init__(self, fg, agents, environment, message_server, opt):
 		self.fg = fg
@@ -5,6 +8,7 @@ class Scheduler:
 		self.opt = opt
 		self.message_server = message_server
 		self.environment = environment
+		self.test_log = []
 
 	def initialize(self):
 		clients = {a:self.agents[a] for a in self.agents}
@@ -16,7 +20,7 @@ class Scheduler:
 
 	def run(self):
 		print "training..."
-		numTimeSteps = 0
+		self.numTimeSteps = 0
 		terminate = False
 		while not terminate:
 			terminate = True
@@ -38,9 +42,9 @@ class Scheduler:
 				for a in self.agents:
 					self.agents[a].updated = False
 
-			numTimeSteps += 1
+			self.numTimeSteps += 1
 
-		print "training terminated in", numTimeSteps, "time steps\n"
+		print "training terminated in", self.numTimeSteps, "time steps\n"
 
 		# reseting time
 		self.environment.reset()
@@ -66,29 +70,93 @@ class Scheduler:
 						break
 
 			all_correct = True
+			res = []
 			for a in self.agents:
 				if not self.agents[a].tests[-1]:
 					all_correct = False
 					print "%s:Failed, " % (a,),
+					res.append(a)
 
 			if all_correct:
 				print "Good",
 			print
 
+			self.test_log.append(res)
+
 			self.environment.next_time_step()
 
-		print 'fert'
+		#print 'fert'
 		
 		for a in self.agents:
 			self.agents[a].terminate = True
-			print 'waiting for', a
+			#print 'waiting for', a
 			self.agents[a].join()
-			print a, 'joined'
+			#print a, 'joined'
 
 		self.message_server.terminate = True
-		print 'waiting for message_server'
+		#print 'waiting for message_server'
 		self.message_server.join()
-		print 'message_server joined'
+		#print 'message_server joined'
 	
 	def terminate(self):
-		pass
+		sys.stdout.flush()
+		sys.stderr.flush()
+
+		correct = 0
+		for t in self.test_log:
+			if len(t) == 0:
+				correct += 1
+		result = {'input-file': sys.argv[1], 'correct': correct, 'options': self.opt, 'tests': [], 'convergence':self.numTimeSteps}
+
+		for i in range(self.opt['tests']):
+			res = {'failed': self.test_log[i]}
+			if len(self.test_log[i]) > 0:
+				res['detatails'] = {}
+				for a in self.test_log[i]:
+					res['detatails'][a] = self.agents[a].test_log[i]
+			result['tests'].append(res)
+
+		print 'Writing results...'
+		folder = 'results/'+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+		os.mkdir(folder)
+		os.mkdir(folder+'/evalues')
+
+		res = open(folder+'/result.txt', 'w')
+		res.write(json.dumps(result, indent=4))
+		res.close()
+
+		for a in self.agents:
+			agent = self.agents[a]
+			transitions = []
+			for t in range(self.environment.num_time_steps):
+				time_step = []
+				for s in agent.time_states[t]:
+					state = {'from': s[0], 'to':[]}
+					dis = {}
+					for ns in agent.next_states((t, s)):
+						dis[ns[1][0]] = agent.evalues[((t,s),ns)]
+
+					probid = self.to_prob(dis)
+					for k in probid:
+						state['to'].append({'to': k, 'prob': probid[k]})
+					time_step.append(state)
+
+				transitions.append(time_step)
+
+			res = open(folder + '/evalues/' + a + '.txt', 'w')
+			res.write(json.dumps(transitions, indent=4))
+			res.close()
+
+			evalues = {}
+			for s in agent.evalues:
+				evalues[str(s)] = agent.evalues[s]
+
+			res = open(folder + '/evalues/' + a + '-evalues.txt', 'w')
+			res.write(json.dumps(evalues, indent=4))
+			res.close()
+
+	def to_prob(self, dis):
+		base = sum(dis.values())
+		for d in dis:
+			dis[d] = dis[d]/base
+		return dis

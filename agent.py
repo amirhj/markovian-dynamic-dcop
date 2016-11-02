@@ -24,6 +24,8 @@ class Agent(threading.Thread):
 		self.temperature = self.opt['temperature']
 		self.tests = []
 		self.nextStates = {}
+		self.test_log = []
+		self.time_states = [set() for t in range(self.environment.num_time_steps+1)]
 	
 	def run(self):
 		while not self.terminate:
@@ -62,38 +64,49 @@ class Agent(threading.Thread):
 			state = (time_step, old_values)
 			nstate = (time_step+1, new_values)
 
+			self.time_states[time_step].add(old_values)
+			self.time_states[time_step+1].add(new_values)
+
 			if self.training:
-				if not self.converged:
-					self.add_transition(state, nstate)
+				#if not self.converged:
+				self.add_transition(state, nstate)
 
-					max_e = 0
-					for ns in self.next_states(nstate):
-						if max_e < self.evalues[(nstate, ns)]:
-							max_e = self.evalues[(nstate, ns)]
+				max_e = 0
+				for ns in self.next_states(nstate):
+					if max_e < self.evalues[(nstate, ns)]:
+						max_e = self.evalues[(nstate, ns)]
 
-					sample = (1 + self.opt['gamma'] * max_e) * self.opt['alpha']
-					self.evalues[(state, nstate)] = self.evalues[(state, nstate)] * (1 - self.opt['alpha']) + sample
-					
-					"""evalue = 0
-					probs = self.calculate_probs(nstate)
-					for ns in probs:
-						evalue += probs[ns] * self.evalues[(nstate, ns)]
+				sample = (1 + self.opt['gamma'] * max_e) * self.opt['alpha']
+				self.evalues[(state, nstate)] = self.evalues[(state, nstate)] * (1 - self.opt['alpha']) + sample
 
-					self.evalues[(state, nstate)] = self.opt['beta'] * evalue"""
+				self.convergence_queue.push(sum(self.evalues.values()))
 
-					self.convergence_queue.push(sum(self.evalues.values()))
+				self.converged = False
+				if self.convergence_queue.is_full():
+					if self.convergence_queue.get_standard_deviation() <= self.opt['standard_deviation']:
+						self.converged = True
 
-					self.converged = False
-					if self.convergence_queue.is_full():
-						if self.convergence_queue.get_standard_deviation() <= self.opt['standard_deviation']:
-							self.converged = True
-
-					self.temperature *= self.opt['decay']
+				self.temperature *= self.opt['decay']
 			else:	# test
-				probs = self.calculate_probs(state, self.opt['test-temperature'])
-				pnstate = chooseFromDistribution(probs)
+				found = False
+				try:
+					probs = self.calculate_probs(state, self.opt['test-temperature'])
+					pnstate = chooseFromDistribution(probs)
+					found = True
+				except Exception as e:
+					"""print 'vvvvvvvvvvvvvvvvvvvvvvvvv2'
+					print state
+					print self.next_states(state)
+					print probs
+					print '^^^^^^^^^^^^^^^^^^^^^^^^^2'"""
+					found = False
 
-				self.tests.append(pnstate == nstate)
+				if found:
+					self.tests.append(pnstate == nstate)
+					self.test_log.append({'pnstate':pnstate[0], 'nstate':nstate[0], 'probes':{s[0]: probs[s] for s in probs}})
+				else:
+					self.tests.append(False)
+					self.test_log.append({'not-found': state[1][0]})
 
 			self.updated = True
 
@@ -116,9 +129,10 @@ class Agent(threading.Thread):
 		b = 0
 		for ns in self.next_states(s):
 			probs[ns] = 0
-			if self.evalues[(s,ns)] > 0:
-				probs[ns] = exp(self.evalues[(s,ns)]/temperature)
-				b += probs[ns]
+			if (s,ns) in self.evalues:
+				if self.evalues[(s,ns)] > 0:
+					probs[ns] = exp(self.evalues[(s,ns)]/temperature)
+					b += probs[ns]
 
 		for ns in probs:
 			if b != 0:
