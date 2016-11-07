@@ -14,11 +14,11 @@ class Agent(threading.Thread):
 		self.fg = fg
 		self.name = name
 		self.environment = environment
-		self.updated = False
+		self.done = False
 		self.relayNode = self.fg.nodes[self.name]
 		self.training = True
-		self.evalues = Counter()
-		self.counter = Counter()
+		self.probabilities = Counter()
+		self.transition_counter = Counter()
 		self.convergence_queue = PipeQueue(self.opt['convergence_size'])
 		self.converged = False
 		self.temperature = self.opt['temperature']
@@ -26,6 +26,13 @@ class Agent(threading.Thread):
 		self.nextStates = {}
 		self.test_log = []
 		self.time_states = [set() for t in range(self.environment.num_time_steps+1)]
+		self.action_taken_neighbours = []
+		self.all_neighbours_took = False
+		self.dcopPhase = 0
+		self.solvingDCOP = False
+		self.dcopMessages = {}
+		self.last_state = None
+		self.decision_made = False
 	
 	def run(self):
 		while not self.terminate:
@@ -41,73 +48,31 @@ class Agent(threading.Thread):
 	def read_message(self):
 		while not self.message_queue.empty():
 			sender, m = self.message_queue.get()
-			if sender == 'auctioneer':
-				if m['type'] == 'submission':
-					pass #self.send('auctioneer', {'type':'submission', 'content':self.proposal})
-				elif m['type'] == 'result':
-					pass #self.update_proposal(m['content']['price'], m['content']['others-actions'], m['content']['in_sellers'], m['content']['in_buyers'])
-				elif m['type'] == 'price':
-					pass #self.calculate_utility(m['content'])
-				elif m['type'] == 'out':
-					pass #self.calculate_utility(m['content'])
+			if m['type'] == 'action-taken':
+				self.action_taken_neighbours.append(sender)
+				if self.relayNode.num_neighbours == len(self.action_taken_neighbours):
+					self.all_neighbours_took = True
+					del self.action_taken_neighbours[:]
 				else:
-					raise Exception('Invalid message type ' + m['type'])
+					self.all_neighbours_took = False
+
+			elif m['type'] == 'request-for-dcop':
+				self.solvingDCOP = True
+				for c in self.relayNode.children:
+					self.send(c, {'type': 'request-for-dcop'})
+				
+			elif m['type'] == 'dydop-phase1':
+				self.solvingDCOP = True
+				self.dcopPhase = 1
+				self.dcopMessages[sender] = m['content']
+
+			elif m['type'] == 'dydop-phase2':
+				self.solvingDCOP = True
+				self.dcopPhase = 2
+				self.dcopMessages[sender] = m['content']
+
 			else:
-				raise Exception('Invalid sender '+ sender)
-
-	def process(self):
-		if not self.updated:
-			old_values = tuple([self.relayNode.resources[r].last_generation for r in self.relayNode.resources])
-			new_values = tuple([self.relayNode.resources[r].get_generation() for r in self.relayNode.resources])
-			time_step = self.environment.get_time()
-
-			state = (time_step, old_values)
-			nstate = (time_step+1, new_values)
-
-			self.time_states[time_step].add(old_values)
-			self.time_states[time_step+1].add(new_values)
-
-			if self.training:
-				#if not self.converged:
-				self.add_transition(state, nstate)
-
-				max_e = 0
-				for ns in self.next_states(nstate):
-					if max_e < self.evalues[(nstate, ns)]:
-						max_e = self.evalues[(nstate, ns)]
-
-				sample = (1 + self.opt['gamma'] * max_e) * self.opt['alpha']
-				self.evalues[(state, nstate)] = self.evalues[(state, nstate)] * (1 - self.opt['alpha']) + sample
-
-				self.convergence_queue.push(sum(self.evalues.values()))
-
-				self.converged = False
-				if self.convergence_queue.is_full():
-					if self.convergence_queue.get_standard_deviation() <= self.opt['standard_deviation']:
-						self.converged = True
-
-				self.temperature *= self.opt['decay']
-			else:	# test
-				found = False
-				try:
-					probs = self.calculate_probs(state, self.opt['test-temperature'])
-					pnstate = chooseFromDistribution(probs)
-					found = True
-				except Exception as e:
-					"""print 'vvvvvvvvvvvvvvvvvvvvvvvvv2'
-					print state
-					print self.next_states(state)
-					print probs
-					print '^^^^^^^^^^^^^^^^^^^^^^^^^2'"""
-					found = False
-
-				if found:
-					self.tests.append(pnstate == nstate)
-					self.test_log.append({'pnstate':pnstate[0], 'nstate':nstate[0], 'probes':{s[0]: probs[s] for s in probs}})
-				else:
-					self.tests.append(False)
-					self.test_log.append({'not-found': state[1][0]})
-
+				raise Exception('Invalid message type ' + m['type'])
 			self.updated = True
 
 	def add_transition(self, s, ns):
@@ -121,21 +86,75 @@ class Agent(threading.Thread):
 			nextstates = list(self.nextStates[s])
 		return nextstates
 
-	def calculate_probs(self, s, temperature=None):
-		if temperature is None:
-			temperature = self.temperature
-
-		probs = {}
+	def calculate_probs(self, s):
 		b = 0
 		for ns in self.next_states(s):
-			probs[ns] = 0
-			if (s,ns) in self.evalues:
-				if self.evalues[(s,ns)] > 0:
-					probs[ns] = exp(self.evalues[(s,ns)]/temperature)
-					b += probs[ns]
+			self.probabilities[(s,ns)] = self.transition_counter[(s,ns)]
+			b += probs[ns]
 
-		for ns in probs:
+		for ns in self.next_states(s):
 			if b != 0:
-				probs[ns] = probs[ns] / b
+				self.probabilities[(s,ns)] = self.probabilities[(s,ns)] / b
 
-		return probs
+	def process(self):
+		if self.converged:
+			self.make_decision()
+		else:
+			self.learn_transitions()
+
+		if self.solvingDCOP:
+			self.dcop()
+
+		self.check_time_termination()
+
+	def learn_transitions(self):
+		if self.dcopPhase == 0:	# Agent is not in DCOP solving mode
+			# Start solving DCOP by doing phase1
+			self.dcopPhase = 1
+			self.solvingDCOP = True
+		elif self.dcopPhase == 3:	# Agent solved DCOP
+			# Learning transition probabilities
+			time_step = self.environment.get_time()
+			generators = {g:self.relayNode.generators[g].value for g in self.relayNode.generators}
+
+			powerLines = self.relayNode.get_powerLine_values()
+			powerLineValues = tuple([powerLines[pl] for pl in powerLines])
+			state = (time_step, powerLineValues)
+
+			self.time_states[time_step].add(state)
+
+			# For the first time in t=0 there is no previous calculated dcop solution
+			if self.last_state is not None:
+				self.transition_counter[(self.last_state, state)] += 1
+				self.add_transition(self.last_state, state)
+				self.calculate_probs(self.last_state)
+
+
+			# Back to no DCOP solving mode
+			self.dcopPhase = 0
+
+			self.last_state = state
+			self.done = True
+
+	def make_decision(self):
+		if not self.decision_made:
+			pass
+
+			self.decision_made = True
+			for n in self.relayNode.neighbours:
+				self.send(n, {'type': 'action-taken'})
+		
+		# Checking for good decision
+		if self.all_neighbours_took:
+
+			# check for goodness
+			if good:
+				pass
+			else:
+				# Asking children for solving DCOP
+				for c in self.relayNode.children:
+					self.send(c, {'type': 'request-for-dcop'})
+			
+
+	def time_end(self):
+		self.decision_made = False

@@ -36,7 +36,9 @@ class FactorGraph:
 
 		self.loads = self.grid['loads']
 		
-		self.powerLines = self.grid['powerLines']
+		self.powerLines = {}
+		for pl in self.grid['powerLines']:
+			self.powerLines[pl] = PowerLine(self.grid['powerLines'][pl]['from'], self.grid['powerLines'][pl]['to'], self.grid['powerLines'][pl]['capacity'])
 
 		children = set()
 		nodes = set()
@@ -91,9 +93,9 @@ class FactorGraph:
 			parentPL = None
 			childrenPL = []
 			for pl in self.powerLines:
-				if n in [self.powerLines[pl]['from'], self.powerLines[pl]['to']]:
+				if n in [self.powerLines[pl].fromNode, self.powerLines[pl].toNode]:
 					powerLines.add(pl)
-					if parent in [self.powerLines[pl]['from'], self.powerLines[pl]['to']]:
+					if parent in [self.powerLines[pl].fromNode, self.powerLines[pl].toNode]:
 						parentPL = pl
 					else:
 						childrenPL.append(pl)
@@ -105,7 +107,7 @@ class FactorGraph:
 		for n in self.nodes:
 			self.funcs[n] = {'variables': [g for g in self.nodes[n].generators]}
 			for pl in self.powerLines:
-				if n in (self.powerLines[pl]['from'], self.powerLines[pl]['to']):
+				if n in (self.powerLines[pl]['from'], self.powerLines[pl].toNode):
 					self.funcs[n]['variables'].append(pl)
 
 		for g in self.generators:
@@ -122,13 +124,13 @@ class FactorGraph:
 		for l in self.powerLines:
 			self.vars[l] = {}
 			self.vars[l]['value'] = 0
-			self.vars[l]['size'] = self.powerLines[l]['capacity'] * 2 + 1
-			domain = range(self.powerLines[l]['capacity']) + [self.powerLines[l]['capacity']]
+			self.vars[l]['size'] = self.powerLines[l].capacity * 2 + 1
+			domain = range(self.powerLines[l].capacity) + [self.powerLines[l].capacity]
 			domain.reverse()
 			self.vars[l]['domain'] = [d * -1 for d in domain[:-1]]
 			domain.reverse()
 			self.vars[l]['domain'] += domain
-			self.vars[l]['functions'] = [self.powerLines[l]['from'], self.powerLines[l]['to']]
+			self.vars[l]['functions'] = [self.powerLines[l].fromNode, self.powerLines[l].toNode]
 
 	def get_value(self, name):
 		if name in self.generators:

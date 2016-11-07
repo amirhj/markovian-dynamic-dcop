@@ -13,6 +13,20 @@ class RelayNode:
 		self.parentPL = parentPL
 		self.childrenPL = childrenPL
 
+		self.neighbours = [c for c in children]
+		self.neighbours.append(parent)
+		self.num_neighbours = len(self.neighbours)
+
+	def get_CO_emission(self):
+		return sum([self.generators[g].get_CO_emission() for g in self.generators])
+
+	def get_powerLine_values(self):
+		values = {parentPL: self.powerLines[parentPL].value * -1}
+		for pl in self.childrenPL:
+			values[pl] = self.powerLines[pl].value
+		return values
+
+
 
 class Generator:
 	def __init__(self, id, maxValue, CO):
@@ -20,6 +34,10 @@ class Generator:
 		self.maxValue = maxValue
 		self.CO = CO
 		self.value = 0
+
+	def get_CO_emission(self):
+		return self.value * self.CO
+
 
 
 class Resource:
@@ -47,3 +65,16 @@ class Resource:
 			print timePeriod, ss, self.last_generation, dist
 			print '****************************'
 		return self.last_generation
+
+
+
+class PowerLine:
+	def __init__(self, fromNode, toNode, capacity)
+		self.fromNode = fromNode
+		self.toNode = toNode
+		self.capacity = capacity
+
+		# values are in perspective of parent node
+		# if value is blow zero the flow is from parent to current node
+		# if value is up zero the flow is from current node to parent		
+		self.value = 0
