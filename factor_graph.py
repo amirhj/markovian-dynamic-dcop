@@ -101,7 +101,7 @@ class FactorGraph:
 						childrenPL.append(pl)
 			powerLines = list(powerLines)
 
-			self.nodes[n] = RelayNode(n, parent, children, generators, resources, loads, powerLines, parentPL, childrenPL)
+			self.nodes[n] = RelayNode(n, parent, children, generators, resources, loads, powerLines, parentPL, childrenPL, n in self.leaves, n == self.root)
 
 		# Factor graph elements
 		for n in self.nodes:

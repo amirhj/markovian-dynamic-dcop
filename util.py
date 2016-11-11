@@ -41,7 +41,6 @@ class PipeQueue:
 		return sqrt(sum([(i-avg)**2 for i in self.queue])/len(self.queue))
 
 
-
 """
  Data structures useful for implementing SearchAgents
 """

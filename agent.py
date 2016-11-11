@@ -32,7 +32,10 @@ class Agent(threading.Thread):
 		self.solvingDCOP = False
 		self.dcopMessages = {}
 		self.last_state = None
+		self.current_state = None
 		self.decision_made = False
+		self.dydopPhase1Ready = False
+		self.dydopPhase2Ready = False
 	
 	def run(self):
 		while not self.terminate:
@@ -57,19 +60,19 @@ class Agent(threading.Thread):
 					self.all_neighbours_took = False
 
 			elif m['type'] == 'request-for-dcop':
-				self.solvingDCOP = True
 				for c in self.relayNode.children:
 					self.send(c, {'type': 'request-for-dcop'})
 				
 			elif m['type'] == 'dydop-phase1':
-				self.solvingDCOP = True
 				self.dcopPhase = 1
 				self.dcopMessages[sender] = m['content']
+				if len(self.dcopMessages) == len(self.relayNode.children):
+					self.dydopPhase1Ready = True
 
 			elif m['type'] == 'dydop-phase2':
-				self.solvingDCOP = True
 				self.dcopPhase = 2
-				self.dcopMessages[sender] = m['content']
+				self.dcopMessages = m['content']
+				self.dydopPhase2Ready = True
 
 			else:
 				raise Exception('Invalid message type ' + m['type'])
@@ -102,8 +105,7 @@ class Agent(threading.Thread):
 		else:
 			self.learn_transitions()
 
-		if self.solvingDCOP:
-			self.dcop()
+		self.dcop()
 
 		self.check_time_termination()
 
@@ -111,7 +113,6 @@ class Agent(threading.Thread):
 		if self.dcopPhase == 0:	# Agent is not in DCOP solving mode
 			# Start solving DCOP by doing phase1
 			self.dcopPhase = 1
-			self.solvingDCOP = True
 		elif self.dcopPhase == 3:	# Agent solved DCOP
 			# Learning transition probabilities
 			time_step = self.environment.get_time()
@@ -146,10 +147,11 @@ class Agent(threading.Thread):
 		
 		# Checking for good decision
 		if self.all_neighbours_took:
-
+			powerLines = self.relayNode.get_powerLine_values()
+			powerLineValues = tuple([powerLines[pl] for pl in powerLines])
 			# check for goodness
-			if good:
-				pass
+			if self.current_state[1] == powerLineValues:
+				self.done = True
 			else:
 				# Asking children for solving DCOP
 				for c in self.relayNode.children:
@@ -158,3 +160,163 @@ class Agent(threading.Thread):
 
 	def time_end(self):
 		self.decision_made = False
+
+	def dcop(self):
+		if self.dcopPhase == 1:
+			loads = self.relayNode.get_loads()
+			if self.relayNode.isLeaf:
+				domains = {g:range(self.relayNode.generators[g].maxValue)+[self.relayNode.generators[g].maxValue] for g in self.relayNode.generators}
+				indecies = {g:0 for g in self.relayNode.generators}
+				generators = self.relayNode.generators.keys()
+
+				PowerCost = []
+				self.flowCoMap = {}
+
+				while indecies[generators[0]] < len(domains[generators[0]]):
+					gens = {}
+					CO = 0
+					flow = loads
+					for v in generators:
+						gens[v] = domains[v][indecies[v]]
+						CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
+						flow += gens[v]
+					
+					if abs(flow) <= self.relayNode.parentPL.capacity:
+						flowCo = (flow, CO)
+						self.flowCoMap[flowCo] = {'generators':gens}
+						PowerCost.append(flowCo)
+					
+					for i in reversed(generators):
+						if indecies[i] < len(domains[i]):
+							indecies[i] += 1
+							if indecies[i] == len(domains[i]):
+								if i != generators[0]:
+									indecies[i] = 0
+							else:
+								break
+
+				self.send(self.relayNode.parent, {'type':'dydop-phase1', 'content':PowerCost})
+				self.dcopPhase = 2
+				self.dcopMessages = {}
+				self.dydopPhase1Ready = False
+			elif self.relayNode.isRoot:
+				# checking for reciving message from all children
+				if self.dydopPhase1Ready:
+					domains = {g:range(self.relayNode.generators[g].maxValue)+[self.relayNode.generators[g].maxValue] for g in self.relayNode.generators}
+					indecies = {g:0 for g in self.relayNode.generators}
+					elements = self.relayNode.generators.keys()
+
+					for c in self.dcopMessages:
+						domains[c] = self.dcopMessages[c]
+						indecies[c] = 0
+					elements = elements + self.dcopMessages.keys()
+
+					PowerCost = []
+					self.flowCoMap = {}
+					bestCO = None
+					bestPowerCost = None
+
+					while indecies[generators[0]] < len(domains[elements[0]]):
+						gens = {}
+						childrenGens = {}
+						CO = 0
+						flow = loads
+						for v in elements:
+							if v in self.relayNode.generators:
+								gens[v] = domains[v][indecies[v]]
+								CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
+								flow += gens[v]
+							else:
+								childrenGens[v] = domains[v][indecies[v]]
+								CO += childrenGens[v][1]
+								flow += childrenGens[v][0]
+						
+						if bestCO is None or bestCO > CO:
+							bestCO = CO
+							bestPowerCost = {'generators':gens, 'children': childrenGens}
+						
+						for i in reversed(elements):
+							if indecies[i] < len(domains[i]):
+								indecies[i] += 1
+								if indecies[i] == len(domains[i]):
+									if i != elements[0]:
+										indecies[i] = 0
+								else:
+									break
+
+					self.commit_generators(bestPowerCost['generators'])
+					for c in bestPowerCost['children']:
+						self.send(c, {'type':'dydop-phase2', 'content':bestPowerCost['children'][c]})
+					self.dcopPhase = 3
+					self.dcopMessages = {}
+					self.dydopPhase1Ready = False
+			else:
+				# checking for reciving message from all children
+				if self.dydopPhase1Ready:
+					domains = {g:range(self.relayNode.generators[g].maxValue)+[self.relayNode.generators[g].maxValue] for g in self.relayNode.generators}
+					indecies = {g:0 for g in self.relayNode.generators}
+					elements = self.relayNode.generators.keys()
+
+					for c in self.dcopMessages:
+						domains[c] = self.dcopMessages[c]
+						indecies[c] = 0
+					elements = elements + self.dcopMessages.keys()
+
+					PowerCost = []
+					self.flowCoMap = {}
+
+					while indecies[generators[0]] < len(domains[elements[0]]):
+						gens = {}
+						childrenGens = {}
+						CO = 0
+						flow = loads
+						for v in elements:
+							if v in self.relayNode.generators:
+								gens[v] = domains[v][indecies[v]]
+								CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
+								flow += gens[v]
+							else:
+								childrenGens[v] = domains[v][indecies[v]]
+								CO += childrenGens[v][1]
+								flow += childrenGens[v][0]
+						
+						if abs(flow) <= self.relayNode.parentPL.capacity:
+							flowCo = (flow, CO)
+							self.flowCoMap[flowCo] = {'generators':gens, 'children': childrenGens}
+							PowerCost.append(flowCo)
+						
+						for i in reversed(elements):
+							if indecies[i] < len(domains[i]):
+								indecies[i] += 1
+								if indecies[i] == len(domains[i]):
+									if i != elements[0]:
+										indecies[i] = 0
+								else:
+									break
+
+					self.send(self.relayNode.parent, {'type':'dydop-phase1', 'content':PowerCost})
+					self.dcopPhase = 2
+					self.dcopMessages = {}
+					self.dydopPhase1Ready = False
+
+		elif self.dcopPhase == 2:
+			if self.dydopPhase2Ready:
+				bestPowerCost = self.flowCoMap[self.dcopMessages]
+
+				self.commit_generators(bestPowerCost['generators'])
+
+				if not self.relayNode.isLeaf:
+					for c in bestPowerCost['children']:
+						self.send(c, {'type':'dydop-phase2', 'content':bestPowerCost['children'][c]})
+
+				self.dcopPhase = 3
+				self.dcopMessages = {}
+				self.dydopPhase1Ready = False
+				self.dydopPhase2Ready = False
+
+
+
+
+	def commit_generators(self, gens):
+		for g in gens:
+			self.relayNode.generators.value = gens[g]

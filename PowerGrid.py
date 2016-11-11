@@ -2,7 +2,7 @@ import util, sys
 
 
 class RelayNode:
-	def __init__(self, id, parent, children, generators, resources, loads, powerLines, parentPL, childrenPL):
+	def __init__(self, id, parent, children, generators, resources, loads, powerLines, parentPL, childrenPL, isLeaf, isRoot):
 		self.id = id
 		self.parent = parent
 		self.children = children
@@ -12,6 +12,8 @@ class RelayNode:
 		self.powerLines = powerLines
 		self.parentPL = parentPL
 		self.childrenPL = childrenPL
+		self.isRoot = isRoot
+		self.isLeaf = isLeaf
 
 		self.neighbours = [c for c in children]
 		self.neighbours.append(parent)
@@ -26,6 +28,9 @@ class RelayNode:
 			values[pl] = self.powerLines[pl].value
 		return values
 
+	def get_loads(self):
+		return sum(self.loads.values())
+
 
 
 class Generator:
@@ -36,7 +41,10 @@ class Generator:
 		self.value = 0
 
 	def get_CO_emission(self):
-		return self.value * self.CO
+		return self.calculate_CO_emission(self.value)
+
+	def calculate_CO_emission(self, value):
+		return value * self.CO
 
 
 
