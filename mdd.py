@@ -11,6 +11,7 @@ opt_pattern = { '--temperature': {'name': 'temperature', 'type': 'float', 'defau
 				'--alpha': {'name': 'alpha', 'type': 'float', 'default': 0.9},
 				'--gamma': {'name': 'gamma', 'type': 'float', 'default': 0.8},
 				'-t': {'name': 'tests', 'type': 'int', 'default': 20},
+				'--trains': {'name': 'trains', 'type': 'int', 'default': 3},
 				'-c': {'name': 'convergence_size', 'type': 'int', 'default': 30},
 				'-s': {'name': 'standard_deviation', 'type': 'float', 'default': 1.0},
 				'--beta': {'name': 'beta', 'type': 'float', 'default': 0.8}

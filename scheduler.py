@@ -21,28 +21,20 @@ class Scheduler:
 	def run(self):
 		print "training..."
 		self.numTimeSteps = 0
-		terminate = False
-		while not terminate:
-			terminate = True
-			for a in self.agents:
-				if not self.agents[a].done:
-					terminate = False
-					break
-				else:
-					print a, 'is done'
-
-			if not terminate:
-				all_updated = False
-				while not all_updated:
-					all_updated = True
-					for a in self.agents:
-						if not self.agents[a].done:
-							all_updated = False
-							break
-
-				self.environment.next_time_step()
+		for i in range(self.opt['trains']):
+			terminate = False
+			while not terminate:
+				terminate = True
 				for a in self.agents:
-					self.agents[a].done = False
+					if not self.agents[a].done:
+						terminate = False
+						break
+
+			print 'time step %d finished' % (i+1,)
+
+			self.environment.next_time_step()
+			for a in self.agents:
+				self.agents[a].done = False
 
 			self.numTimeSteps += 1
 
