@@ -1,4 +1,4 @@
-import threading, Queue
+import threading, Queue, time
 
 
 class MessageServer(threading.Thread):
@@ -21,9 +21,10 @@ class MessageServer(threading.Thread):
 			if not self.message_queue.empty():
 				m = self.message_queue.get()
 
-				self.logfile.write(str(m)+'\n')
+				self.logfile.write(str(m)+'\n\n\n')
 				self.log.append(m)
 				self.clients[m[1]].receive(m[0], m[2]) # 0:sender, 2:content
+				time.sleep(2)
 	
 	def send(self, sender, receiver, content, sendtime):
 		self.message_queue.put((sender, receiver, content, sendtime))

@@ -23,9 +23,9 @@ class RelayNode:
 		return sum([self.generators[g].get_CO_emission() for g in self.generators])
 
 	def get_powerLine_values(self):
-		values = {parentPL: self.powerLines[parentPL].value * -1}
+		values = {self.parentPL: self.parentPL.value * -1} if self.parentPL is not None else {}
 		for pl in self.childrenPL:
-			values[pl] = self.powerLines[pl].value
+			values[pl] = self.childrenPL[pl].value
 		return values
 
 	def get_loads(self):
@@ -72,12 +72,15 @@ class Resource:
 			print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
 			print timePeriod, ss, self.last_generation, dist
 			print '****************************'
-		return self.last_generation
+		res = self.last_generation - 18
+		if res < 0:
+			res = 0
+		return res
 
 
 
 class PowerLine:
-	def __init__(self, fromNode, toNode, capacity)
+	def __init__(self, fromNode, toNode, capacity):
 		self.fromNode = fromNode
 		self.toNode = toNode
 		self.capacity = capacity

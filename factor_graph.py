@@ -91,14 +91,14 @@ class FactorGraph:
 
 			powerLines = set()
 			parentPL = None
-			childrenPL = []
+			childrenPL = {}
 			for pl in self.powerLines:
 				if n in [self.powerLines[pl].fromNode, self.powerLines[pl].toNode]:
 					powerLines.add(pl)
 					if parent in [self.powerLines[pl].fromNode, self.powerLines[pl].toNode]:
-						parentPL = pl
+						parentPL = self.powerLines[pl]
 					else:
-						childrenPL.append(pl)
+						childrenPL[pl] = self.powerLines[pl]
 			powerLines = list(powerLines)
 
 			self.nodes[n] = RelayNode(n, parent, children, generators, resources, loads, powerLines, parentPL, childrenPL, n in self.leaves, n == self.root)
@@ -107,7 +107,7 @@ class FactorGraph:
 		for n in self.nodes:
 			self.funcs[n] = {'variables': [g for g in self.nodes[n].generators]}
 			for pl in self.powerLines:
-				if n in (self.powerLines[pl]['from'], self.powerLines[pl].toNode):
+				if n in (self.powerLines[pl].fromNode, self.powerLines[pl].toNode):
 					self.funcs[n]['variables'].append(pl)
 
 		for g in self.generators:

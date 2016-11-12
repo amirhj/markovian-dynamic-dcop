@@ -29,7 +29,6 @@ class Agent(threading.Thread):
 		self.action_taken_neighbours = []
 		self.all_neighbours_took = False
 		self.dcopPhase = 0
-		self.solvingDCOP = False
 		self.dcopMessages = {}
 		self.last_state = None
 		self.current_state = None
@@ -52,22 +51,33 @@ class Agent(threading.Thread):
 		while not self.message_queue.empty():
 			sender, m = self.message_queue.get()
 			if m['type'] == 'action-taken':
-				self.action_taken_neighbours.append(sender)
-				if self.relayNode.num_neighbours == len(self.action_taken_neighbours):
-					self.all_neighbours_took = True
-					del self.action_taken_neighbours[:]
+				if self.dcopPhase == 0:
+					self.action_taken_neighbours.append(sender)
+					if self.relayNode.num_neighbours == len(self.action_taken_neighbours):
+						self.all_neighbours_took = True
+						del self.action_taken_neighbours[:]
+					else:
+						self.all_neighbours_took = False
 				else:
-					self.all_neighbours_took = False
+					del self.action_taken_neighbours[:]
 
 			elif m['type'] == 'request-for-dcop':
-				for c in self.relayNode.children:
-					self.send(c, {'type': 'request-for-dcop'})
+				if self.dcopPhase == 0:
+					self.dcopPhase = 1
+					for c in self.relayNode.children:
+						self.send(c, {'type': 'request-for-dcop'})
+				self.decision_made = False
+				self.done = False
 				
 			elif m['type'] == 'dydop-phase1':
 				self.dcopPhase = 1
+				self.decision_made = False
+				self.done = False
 				self.dcopMessages[sender] = m['content']
 				if len(self.dcopMessages) == len(self.relayNode.children):
 					self.dydopPhase1Ready = True
+				if self.name == 'v1':
+					print self.name, ': dydop-phase1 from' , sender
 
 			elif m['type'] == 'dydop-phase2':
 				self.dcopPhase = 2
@@ -93,27 +103,27 @@ class Agent(threading.Thread):
 		b = 0
 		for ns in self.next_states(s):
 			self.probabilities[(s,ns)] = self.transition_counter[(s,ns)]
-			b += probs[ns]
+			b += self.probabilities[(s,ns)]
 
 		for ns in self.next_states(s):
 			if b != 0:
 				self.probabilities[(s,ns)] = self.probabilities[(s,ns)] / b
 
 	def process(self):
-		if self.converged:
-			self.make_decision()
-		else:
-			self.learn_transitions()
+		if not self.done:
+			if self.converged:
+				self.make_decision()
+			else:
+				self.learn_transitions()
 
-		self.dcop()
-
-		self.check_time_termination()
+			self.dcop()
 
 	def learn_transitions(self):
 		if self.dcopPhase == 0:	# Agent is not in DCOP solving mode
 			# Start solving DCOP by doing phase1
 			self.dcopPhase = 1
 		elif self.dcopPhase == 3:	# Agent solved DCOP
+			print self.name, 'DCOP SOLVED'
 			# Learning transition probabilities
 			time_step = self.environment.get_time()
 			generators = {g:self.relayNode.generators[g].value for g in self.relayNode.generators}
@@ -145,8 +155,8 @@ class Agent(threading.Thread):
 			for n in self.relayNode.neighbours:
 				self.send(n, {'type': 'action-taken'})
 		
-		# Checking for good decision
-		if self.all_neighbours_took:
+		elif self.all_neighbours_took:
+			# Checking for good decision
 			powerLines = self.relayNode.get_powerLine_values()
 			powerLineValues = tuple([powerLines[pl] for pl in powerLines])
 			# check for goodness
@@ -204,45 +214,62 @@ class Agent(threading.Thread):
 				if self.dydopPhase1Ready:
 					domains = {g:range(self.relayNode.generators[g].maxValue)+[self.relayNode.generators[g].maxValue] for g in self.relayNode.generators}
 					indecies = {g:0 for g in self.relayNode.generators}
-					elements = self.relayNode.generators.keys()
+					generators = self.relayNode.generators.keys()
 
-					for c in self.dcopMessages:
-						domains[c] = self.dcopMessages[c]
-						indecies[c] = 0
-					elements = elements + self.dcopMessages.keys()
-
-					PowerCost = []
-					self.flowCoMap = {}
 					bestCO = None
 					bestPowerCost = None
 
-					while indecies[generators[0]] < len(domains[elements[0]]):
+					while indecies[generators[0]] < len(domains[generators[0]]):
 						gens = {}
-						childrenGens = {}
 						CO = 0
 						flow = loads
-						for v in elements:
-							if v in self.relayNode.generators:
-								gens[v] = domains[v][indecies[v]]
-								CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
-								flow += gens[v]
-							else:
-								childrenGens[v] = domains[v][indecies[v]]
-								CO += childrenGens[v][1]
-								flow += childrenGens[v][0]
+						for v in generators:
+							gens[v] = domains[v][indecies[v]]
+							CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
+							flow += gens[v]
+
+						Cdomains = {}
+						Cindecies = {}
+						elements =  self.dcopMessages.keys()
+
+						for c in self.dcopMessages:
+							Cdomains[c] = self.dcopMessages[c]
+							Cindecies[c] = 0
+
+						while Cindecies[elements[0]] < len(Cdomains[elements[0]]):
+							childrenGens = {}
+							cCO = CO
+							Cflow = flow
+							for v in elements:
+								childrenGens[v] = Cdomains[v][Cindecies[v]]
+								cCO += childrenGens[v][1]
+								Cflow += childrenGens[v][0]
+
+							if Cflow == 0:
+								if bestCO is None or bestCO > cCO:
+									bestCO = cCO
+									bestPowerCost = {'generators':gens, 'children': childrenGens}
+							
+							for i in reversed(elements):
+								if Cindecies[i] < len(Cdomains[i]):
+									Cindecies[i] += 1
+									if Cindecies[i] == len(Cdomains[i]):
+										if i != elements[0]:
+											Cindecies[i] = 0
+									else:
+										break
 						
-						if bestCO is None or bestCO > CO:
-							bestCO = CO
-							bestPowerCost = {'generators':gens, 'children': childrenGens}
-						
-						for i in reversed(elements):
+						for i in reversed(generators):
 							if indecies[i] < len(domains[i]):
 								indecies[i] += 1
 								if indecies[i] == len(domains[i]):
-									if i != elements[0]:
+									if i != generators[0]:
 										indecies[i] = 0
 								else:
 									break
+
+					if bestCO is None:
+						raise Exception('No feasible solution')
 
 					self.commit_generators(bestPowerCost['generators'])
 					for c in bestPowerCost['children']:
@@ -255,41 +282,64 @@ class Agent(threading.Thread):
 				if self.dydopPhase1Ready:
 					domains = {g:range(self.relayNode.generators[g].maxValue)+[self.relayNode.generators[g].maxValue] for g in self.relayNode.generators}
 					indecies = {g:0 for g in self.relayNode.generators}
-					elements = self.relayNode.generators.keys()
-
-					for c in self.dcopMessages:
-						domains[c] = self.dcopMessages[c]
-						indecies[c] = 0
-					elements = elements + self.dcopMessages.keys()
+					generators = self.relayNode.generators.keys()
 
 					PowerCost = []
 					self.flowCoMap = {}
 
-					while indecies[generators[0]] < len(domains[elements[0]]):
+					while indecies[generators[0]] < len(domains[generators[0]]):
 						gens = {}
-						childrenGens = {}
 						CO = 0
 						flow = loads
-						for v in elements:
-							if v in self.relayNode.generators:
-								gens[v] = domains[v][indecies[v]]
-								CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
-								flow += gens[v]
-							else:
-								childrenGens[v] = domains[v][indecies[v]]
-								CO += childrenGens[v][1]
-								flow += childrenGens[v][0]
+						for v in generators:
+							gens[v] = domains[v][indecies[v]]
+							CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
+							flow += gens[v]
+
+						Cdomains = {}
+						Cindecies = {}
+						elements =  self.dcopMessages.keys()
+
+						for c in self.dcopMessages:
+							Cdomains[c] = self.dcopMessages[c]
+							Cindecies[c] = 0
+
+						minFlowCO = None
+						minCO = None
+						minChildrenGens = None
+
+						while Cindecies[elements[0]] < len(Cdomains[elements[0]]):
+							childrenGens = {}
+							cCO = CO
+							Cflow = flow
+							for v in elements:
+								childrenGens[v] = Cdomains[v][Cindecies[v]]
+								cCO += childrenGens[v][1]
+								Cflow += childrenGens[v][0]
+							
+							if abs(Cflow) <= self.relayNode.parentPL.capacity:
+								if minCO is None or minCO > cCO:
+									minFlowCO = (flow, cCO)
+									minCO = cCO
+									minChildrenGens = childrenGens
+							
+							for i in reversed(elements):
+								if Cindecies[i] < len(Cdomains[i]):
+									Cindecies[i] += 1
+									if Cindecies[i] == len(Cdomains[i]):
+										if i != elements[0]:
+											Cindecies[i] = 0
+									else:
+										break
+
+						self.flowCoMap[minFlowCO] = {'generators':gens, 'children': minChildrenGens}
+						PowerCost.append(minFlowCO)
 						
-						if abs(flow) <= self.relayNode.parentPL.capacity:
-							flowCo = (flow, CO)
-							self.flowCoMap[flowCo] = {'generators':gens, 'children': childrenGens}
-							PowerCost.append(flowCo)
-						
-						for i in reversed(elements):
+						for i in reversed(generators):
 							if indecies[i] < len(domains[i]):
 								indecies[i] += 1
 								if indecies[i] == len(domains[i]):
-									if i != elements[0]:
+									if i != generators[0]:
 										indecies[i] = 0
 								else:
 									break
@@ -319,4 +369,4 @@ class Agent(threading.Thread):
 
 	def commit_generators(self, gens):
 		for g in gens:
-			self.relayNode.generators.value = gens[g]
+			self.relayNode.generators[g].value = gens[g]

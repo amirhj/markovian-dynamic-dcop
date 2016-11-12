@@ -25,22 +25,24 @@ class Scheduler:
 		while not terminate:
 			terminate = True
 			for a in self.agents:
-				if not self.agents[a].converged:
+				if not self.agents[a].done:
 					terminate = False
 					break
+				else:
+					print a, 'is done'
 
 			if not terminate:
 				all_updated = False
 				while not all_updated:
 					all_updated = True
 					for a in self.agents:
-						if not self.agents[a].updated:
+						if not self.agents[a].done:
 							all_updated = False
 							break
 
 				self.environment.next_time_step()
 				for a in self.agents:
-					self.agents[a].updated = False
+					self.agents[a].done = False
 
 			self.numTimeSteps += 1
 
