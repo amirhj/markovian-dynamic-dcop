@@ -35,6 +35,7 @@ class Agent(threading.Thread):
 		self.decision_made = False
 		self.dydopPhase1Ready = False
 		self.dydopPhase2Ready = False
+		self.generations = {}
 	
 	def run(self):
 		while not self.terminate:
@@ -76,8 +77,6 @@ class Agent(threading.Thread):
 				self.dcopMessages[sender] = m['content']
 				if len(self.dcopMessages) == len(self.relayNode.children):
 					self.dydopPhase1Ready = True
-				if self.name == 'v1':
-					print self.name, ': dydop-phase1 from' , sender
 
 			elif m['type'] == 'dydop-phase2':
 				self.dcopPhase = 2
@@ -123,7 +122,6 @@ class Agent(threading.Thread):
 			# Start solving DCOP by doing phase1
 			self.dcopPhase = 1
 		elif self.dcopPhase == 3:	# Agent solved DCOP
-			print self.name, 'DCOP SOLVED'
 			# Learning transition probabilities
 			time_step = self.environment.get_time()
 			generators = {g:self.relayNode.generators[g].value for g in self.relayNode.generators}
@@ -133,6 +131,7 @@ class Agent(threading.Thread):
 			state = (time_step, powerLineValues)
 
 			self.time_states[time_step].add(state)
+			self.generations[state] = sum(generators.values())
 
 			# For the first time in t=0 there is no previous calculated dcop solution
 			if self.last_state is not None:
@@ -170,6 +169,13 @@ class Agent(threading.Thread):
 
 	def time_end(self):
 		self.decision_made = False
+		self.dcopPhase = 0
+		self.dydopPhase1Ready = False
+		self.dydopPhase2Ready = False
+		self.dcopMessages = {}
+		self.all_neighbours_took = False
+		self.action_taken_neighbours = []
+		self.done = False
 
 	def dcop(self):
 		if self.dcopPhase == 1:

@@ -20,8 +20,7 @@ class Scheduler:
 
 	def run(self):
 		print "training..."
-		self.numTimeSteps = 0
-		for i in range(self.opt['trains']):
+		for i in xrange(self.opt['trains']):
 			terminate = False
 			while not terminate:
 				terminate = True
@@ -34,52 +33,25 @@ class Scheduler:
 
 			self.environment.next_time_step()
 			for a in self.agents:
-				self.agents[a].done = False
+				self.agents[a].time_end()
 
-			self.numTimeSteps += 1
-
-		print "training terminated in", self.numTimeSteps, "time steps\n"
-
-		# reseting time
-		self.environment.reset()
-		for r in self.fg.resources:
-			self.fg.resources[r].last_generation = 0
 		for a in self.agents:
-			self.agents[a].training = False
-			
-		print "testing..."
+			self.agents[a].converged = True
 
-		for i in range(self.opt['tests']):
-			print "%d: " % (i+1,),
-
-			for a in self.agents:
-				self.agents[a].updated = False
-
-			all_updated = False
-			while not all_updated:
-				all_updated = True
+		print "\n\ntesting..."
+		for i in xrange(self.opt['tests']):
+			terminate = False
+			while not terminate:
+				terminate = True
 				for a in self.agents:
-					if not self.agents[a].updated:
-						all_updated = False
+					if not self.agents[a].done:
+						terminate = False
 						break
 
-			all_correct = True
-			res = []
-			for a in self.agents:
-				if not self.agents[a].tests[-1]:
-					all_correct = False
-					print "%s:Failed, " % (a,),
-					res.append(a)
-
-			if all_correct:
-				print "Good",
-			print
-
-			self.test_log.append(res)
-
 			self.environment.next_time_step()
+			for a in self.agents:
+				self.agents[a].time_end()
 
-		#print 'fert'
 		
 		for a in self.agents:
 			self.agents[a].terminate = True
@@ -96,21 +68,30 @@ class Scheduler:
 		sys.stdout.flush()
 		sys.stderr.flush()
 
-		correct = 0
-		for t in self.test_log:
-			if len(t) == 0:
-				correct += 1
-		result = {'input-file': sys.argv[1], 'correct': correct, 'options': self.opt, 'tests': [], 'convergence':self.numTimeSteps}
-
-		for i in range(self.opt['tests']):
-			res = {'failed': self.test_log[i]}
-			if len(self.test_log[i]) > 0:
-				res['detatails'] = {}
-				for a in self.test_log[i]:
-					res['detatails'][a] = self.agents[a].test_log[i]
-			result['tests'].append(res)
-
 		print 'Writing results...'
+
+		results = {'nodes': {}, 'times': []}
+
+		for a in self.agents:
+			agent = self.agents[a]
+			
+			results['nodes'][a] = {'intermittent': agent.relayNode.resources[agent.relayNode.resources.keys()[0]].transitions}
+			
+			results['nodes'][a]['states'] = []
+			for t in range(self.environment.num_time_steps):
+				states = []
+				for s in agent.time_states[t]:
+					state = {'from': agent.generations[s], 'to':[]}
+					for ns in agent.next_states(s):
+						state['to'].append({'to': agent.generations[ns], 'prob':agent.probabilities[(s,ns)]})
+					states.append(state)
+				results['nodes'][a]['states'].append(states)
+
+			results['nodes'][a]['messages'] = [self.message_server.agentLog[a][t] for t in range(self.environment.num_time_steps)]
+
+		for t in range(self.environment.num_time_steps):
+			results['times'][t] = {a:self.message_server.timeLog[t][a] for a in self.agents}
+
 		folder = 'results/'+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		os.mkdir(folder)
 		os.mkdir(folder+'/evalues')
@@ -118,39 +99,3 @@ class Scheduler:
 		res = open(folder+'/result.txt', 'w')
 		res.write(json.dumps(result, indent=4))
 		res.close()
-
-		for a in self.agents:
-			agent = self.agents[a]
-			transitions = []
-			for t in range(self.environment.num_time_steps):
-				time_step = []
-				for s in agent.time_states[t]:
-					state = {'from': s[0], 'to':[]}
-					dis = {}
-					for ns in agent.next_states((t, s)):
-						dis[ns[1][0]] = agent.evalues[((t,s),ns)]
-
-					probid = self.to_prob(dis)
-					for k in probid:
-						state['to'].append({'to': k, 'prob': probid[k]})
-					time_step.append(state)
-
-				transitions.append(time_step)
-
-			res = open(folder + '/evalues/' + a + '.txt', 'w')
-			res.write(json.dumps(transitions, indent=4))
-			res.close()
-
-			evalues = {}
-			for s in agent.evalues:
-				evalues[str(s)] = agent.evalues[s]
-
-			res = open(folder + '/evalues/' + a + '-evalues.txt', 'w')
-			res.write(json.dumps(evalues, indent=4))
-			res.close()
-
-	def to_prob(self, dis):
-		base = sum(dis.values())
-		for d in dis:
-			dis[d] = dis[d]/base
-		return dis
