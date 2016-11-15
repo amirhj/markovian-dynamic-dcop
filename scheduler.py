@@ -19,7 +19,7 @@ class Scheduler:
 			self.agents[a].start()
 
 	def run(self):
-		print "training..."
+		#print "training..."
 		for i in xrange(self.opt['trains']):
 			terminate = False
 			while not terminate:
@@ -35,8 +35,8 @@ class Scheduler:
 			for a in self.agents:
 				self.agents[a].time_end()
 
-		for a in self.agents:
-			self.agents[a].converged = True
+		#for a in self.agents:
+			#self.agents[a].converged = True
 
 		print "\n\ntesting..."
 		for i in xrange(self.opt['tests']):
@@ -70,14 +70,14 @@ class Scheduler:
 
 		print 'Writing results...'
 
-		results = {'nodes': {}, 'times': []}
+		results = {'agents': {}, 'timeSteps': []}
 
 		for a in self.agents:
 			agent = self.agents[a]
 			
-			results['nodes'][a] = {'intermittent': agent.relayNode.resources[agent.relayNode.resources.keys()[0]].transitions}
+			results['agents'][a] = {'intermittent': agent.relayNode.resources[agent.relayNode.resources.keys()[0]].transitions}
 			
-			results['nodes'][a]['states'] = []
+			results['agents'][a]['states'] = []
 			for t in range(self.environment.num_time_steps):
 				states = []
 				for s in agent.time_states[t]:
@@ -85,17 +85,17 @@ class Scheduler:
 					for ns in agent.next_states(s):
 						state['to'].append({'to': agent.generations[ns], 'prob':agent.probabilities[(s,ns)]})
 					states.append(state)
-				results['nodes'][a]['states'].append(states)
+				results['agents'][a]['states'].append(states)
 
-			results['nodes'][a]['messages'] = [self.message_server.agentLog[a][t] for t in range(self.environment.num_time_steps)]
+			results['agents'][a]['messages'] = [self.message_server.agentLog[a][t] for t in range(self.environment.num_time_steps)]
 
 		for t in range(self.environment.num_time_steps):
-			results['times'][t] = {a:self.message_server.timeLog[t][a] for a in self.agents}
+			results['timeSteps'].append({a:self.message_server.timeLog[t][a] for a in self.agents})
 
 		folder = 'results/'+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		os.mkdir(folder)
-		os.mkdir(folder+'/evalues')
+		#os.mkdir(folder+'/evalues')
 
-		res = open(folder+'/result.txt', 'w')
-		res.write(json.dumps(result, indent=4))
+		res = open(folder+'/results.json', 'w')
+		res.write(json.dumps(results, indent=4))
 		res.close()

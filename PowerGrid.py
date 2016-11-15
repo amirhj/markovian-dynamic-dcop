@@ -16,7 +16,8 @@ class RelayNode:
 		self.isLeaf = isLeaf
 
 		self.neighbours = [c for c in children]
-		self.neighbours.append(parent)
+		if parent is not None:
+			self.neighbours.append(parent)
 		self.num_neighbours = len(self.neighbours)
 
 	def get_CO_emission(self):
@@ -54,27 +55,32 @@ class Resource:
 		self.transitions = transitions
 		self.environment = environment
 		self.last_generation = 0
+		self.last_time = 0
 
 	def get_generation(self):
-		timePeriod = self.environment.get_time()
-		tran = self.transitions[timePeriod]
-		dist = {}
-		for s in tran:
-			if s['from'] == self.last_generation:
-				for ns in s['to']:
-					dist[ns['to']] = ns['prob']
-				break
-		
-		try:
-			ss = self.last_generation
-			self.last_generation = util.chooseFromDistribution(dist)
-		except Exception as e:
-			print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
-			print timePeriod, ss, self.last_generation, dist
-			print '****************************'
-		res = self.last_generation - 18
-		if res < 0:
-			res = 0
+		if self.id == 'i0':
+			timePeriod = self.environment.get_time()
+			if timePeriod != self.last_time:
+				tran = self.transitions[self.last_time]
+				disto = {}
+				for s in tran:
+					if s['from'] == self.last_generation:
+						for ns in s['to']:
+							disto[ns['to']] = ns['prob']
+						break
+
+				self.last_time = timePeriod
+				try:
+					ss = self.last_generation
+					self.last_generation = util.chooseFromDistribution(disto)
+				except Exception as e:
+					if self.id == 'i0':
+						print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
+						print self.last_time, ss, self.last_generation, disto
+						print '****************************'
+		#res = self.last_generation - 18
+		#if res < 0:
+		#	res = 0
 		return res
 
 

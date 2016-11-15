@@ -1,4 +1,4 @@
-import threading, Queue
+import threading, Queue, sys, time
 from datetime import datetime
 from util import Counter, PipeQueue, chooseFromDistribution
 from math import exp
@@ -191,7 +191,8 @@ class Agent(threading.Thread):
 				while indecies[generators[0]] < len(domains[generators[0]]):
 					gens = {}
 					CO = 0
-					flow = loads
+					flow = loads + sum([self.relayNode.resources[r].get_generation() for r in self.relayNode.resources])
+					
 					for v in generators:
 						gens[v] = domains[v][indecies[v]]
 						CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
@@ -228,7 +229,7 @@ class Agent(threading.Thread):
 					while indecies[generators[0]] < len(domains[generators[0]]):
 						gens = {}
 						CO = 0
-						flow = loads
+						flow = loads + sum([self.relayNode.resources[r].get_generation() for r in self.relayNode.resources])
 						for v in generators:
 							gens[v] = domains[v][indecies[v]]
 							CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
@@ -296,7 +297,7 @@ class Agent(threading.Thread):
 					while indecies[generators[0]] < len(domains[generators[0]]):
 						gens = {}
 						CO = 0
-						flow = loads
+						flow = loads + sum([self.relayNode.resources[r].get_generation() for r in self.relayNode.resources])
 						for v in generators:
 							gens[v] = domains[v][indecies[v]]
 							CO += self.relayNode.generators[v].calculate_CO_emission(gens[v])
