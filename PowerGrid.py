@@ -24,13 +24,25 @@ class RelayNode:
 		return sum([self.generators[g].get_CO_emission() for g in self.generators])
 
 	def get_powerLine_values(self):
-		values = {self.parentPL: self.parentPL.value * -1} if self.parentPL is not None else {}
-		for pl in self.childrenPL:
-			values[pl] = self.childrenPL[pl].value
+		values = {self.parent: self.parentPL.value * -1} if self.parentPL is not None else {}
+		for c in self.children:
+			pl = self.get_powerLine_to(c)
+			values[c] = pl.value
 		return values
 
 	def get_loads(self):
 		return sum(self.loads.values())
+
+	def get_powerLine_to(self, node):
+		if node == self.parent:
+			return self.parentPL
+		else:
+			for pl in self.childrenPL:
+				if self.childrenPL[pl].toNode == node:
+					return self.childrenPL[pl]
+				elif self.childrenPL[pl].fromNode == node:
+					return self.childrenPL[pl]
+			raise 'Not found power line to '+node
 
 
 
@@ -56,31 +68,36 @@ class Resource:
 		self.environment = environment
 		self.last_generation = 0
 		self.last_time = 0
+		if self.id == 'i0':
+			self.loglog = open('results/res.txt', 'w')
 
 	def get_generation(self):
-		if self.id == 'i0':
-			timePeriod = self.environment.get_time()
-			if timePeriod != self.last_time:
-				tran = self.transitions[self.last_time]
-				disto = {}
-				for s in tran:
-					if s['from'] == self.last_generation:
-						for ns in s['to']:
-							disto[ns['to']] = ns['prob']
-						break
+		#if self.id == 'i0':
+		timePeriod = self.environment.get_time()
+		if timePeriod != self.last_time:
+			tran = self.transitions[self.last_time]
+			disto = {}
+			for s in tran:
+				if s['from'] == self.last_generation:
+					for ns in s['to']:
+						disto[ns['to']] = ns['prob']
+					break
 
-				self.last_time = timePeriod
-				try:
-					ss = self.last_generation
-					self.last_generation = util.chooseFromDistribution(disto)
-				except Exception as e:
-					if self.id == 'i0':
-						print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
-						print self.last_time, ss, self.last_generation, disto
-						print '****************************'
-		#res = self.last_generation - 18
-		#if res < 0:
-		#	res = 0
+			try:
+				ss = self.last_generation
+				self.last_generation = util.chooseFromDistribution(disto)
+				if self.last_generation == 0 and self.last_time != 4:
+					raise 'FUCK', self.last_time, timePeriod
+			except Exception as e:
+				if self.id == 'i0':
+					print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
+					print self.last_time, ss, self.last_generation, timePeriod, disto
+					print '****************************'
+					raise e
+			self.last_time = timePeriod
+		res = self.last_generation - 18
+		if res < 0:
+			res = 0
 		return res
 
 

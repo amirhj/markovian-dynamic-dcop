@@ -35,8 +35,10 @@ class Scheduler:
 			for a in self.agents:
 				self.agents[a].time_end()
 
-		#for a in self.agents:
-			#self.agents[a].converged = True
+		self.message_server.testMode = True
+
+		for a in self.agents:
+			self.agents[a].converged = True
 
 		print "\n\ntesting..."
 		for i in xrange(self.opt['tests']):
@@ -47,6 +49,8 @@ class Scheduler:
 					if not self.agents[a].done:
 						terminate = False
 						break
+
+			print 'time step %d finished' % (i+1,)
 
 			self.environment.next_time_step()
 			for a in self.agents:
@@ -70,7 +74,7 @@ class Scheduler:
 
 		print 'Writing results...'
 
-		results = {'agents': {}, 'timeSteps': []}
+		results = {'agents': {}, 'timeSteps': {'train':[], 'test':[]}}
 
 		for a in self.agents:
 			agent = self.agents[a]
@@ -87,10 +91,13 @@ class Scheduler:
 					states.append(state)
 				results['agents'][a]['states'].append(states)
 
-			results['agents'][a]['messages'] = [self.message_server.agentLog[a][t] for t in range(self.environment.num_time_steps)]
+			results['agents'][a]['messages'] = {}
+			results['agents'][a]['messages']['train'] = [self.message_server.agentLog[a][t] for t in range(self.environment.num_time_steps)]
+			results['agents'][a]['messages']['test'] = [self.message_server.agentLogTest[a][t] for t in range(self.environment.num_time_steps)]
 
 		for t in range(self.environment.num_time_steps):
-			results['timeSteps'].append({a:self.message_server.timeLog[t][a] for a in self.agents})
+			results['timeSteps']['train'].append({a:self.message_server.timeLog[t][a] for a in self.agents})
+			results['timeSteps']['test'].append({a:self.message_server.timeLog[t][a] for a in self.agents})
 
 		folder = 'results/'+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		os.mkdir(folder)

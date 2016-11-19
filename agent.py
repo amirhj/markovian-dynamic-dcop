@@ -1,4 +1,4 @@
-import threading, Queue, sys, time
+import threading, Queue, sys, time, pprint
 from datetime import datetime
 from util import Counter, PipeQueue, chooseFromDistribution
 from math import exp
@@ -31,11 +31,12 @@ class Agent(threading.Thread):
 		self.dcopPhase = 0
 		self.dcopMessages = {}
 		self.last_state = None
-		self.current_state = None
 		self.decision_made = False
 		self.dydopPhase1Ready = False
 		self.dydopPhase2Ready = False
 		self.generations = {}
+		self.powerLineValues = {}
+		self.generatorsValues = {}
 	
 	def run(self):
 		while not self.terminate:
@@ -47,6 +48,9 @@ class Agent(threading.Thread):
 	
 	def send(self, receiver, content):
 		self.message_server.send(self.name, receiver, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+	def printer(self, c):
+		self.message_server.printer(c)
 
 	def read_message(self):
 		while not self.message_queue.empty():
@@ -98,20 +102,24 @@ class Agent(threading.Thread):
 			nextstates = list(self.nextStates[s])
 		return nextstates
 
-	def calculate_probs(self, s):
-		b = 0
-		for ns in self.next_states(s):
-			self.probabilities[(s,ns)] = self.transition_counter[(s,ns)]
-			b += self.probabilities[(s,ns)]
+	def calculate_probs(self):
+		for t in self.transition_counter:
+			s = t[0]
+			b = 0
 
-		for ns in self.next_states(s):
-			if b != 0:
+			for ns in self.next_states(s):
+				self.probabilities[(s,ns)] = self.transition_counter[(s,ns)]
+				b += self.probabilities[(s,ns)]
+
+			b = float(b)
+			for ns in self.next_states(s):
 				self.probabilities[(s,ns)] = self.probabilities[(s,ns)] / b
 
 	def process(self):
 		if not self.done:
 			if self.converged:
-				self.make_decision()
+				if self.dcopPhase in [0,3]:
+					self.make_decision()
 			else:
 				self.learn_transitions()
 
@@ -133,11 +141,14 @@ class Agent(threading.Thread):
 			self.time_states[time_step].add(state)
 			self.generations[state] = sum(generators.values())
 
+			self.generatorsValues[state] = generators
+			self.powerLineValues[state] = powerLines
+
 			# For the first time in t=0 there is no previous calculated dcop solution
 			if self.last_state is not None:
 				self.transition_counter[(self.last_state, state)] += 1
 				self.add_transition(self.last_state, state)
-				self.calculate_probs(self.last_state)
+				self.calculate_probs()
 
 
 			# Back to no DCOP solving mode
@@ -147,25 +158,49 @@ class Agent(threading.Thread):
 			self.done = True
 
 	def make_decision(self):
-		if not self.decision_made:
-			pass
+		if self.dcopPhase == 0:
+			if not self.decision_made:
+				if self.last_state is not None:
+					probs = {}
+					for ns in self.next_states(self.last_state):
+						probs[ns] = self.probabilities[(self.last_state,ns)]
 
-			self.decision_made = True
-			for n in self.relayNode.neighbours:
-				self.send(n, {'type': 'action-taken'})
+					if len(probs) > 0:
+						self.last_state = chooseFromDistribution(probs)
+
+						self.commit_generators(self.generatorsValues[self.last_state])
+						self.commit_children_powerLines(self.powerLineValues[self.last_state])
+
+						self.decision_made = True
+						for n in self.relayNode.neighbours:
+							self.send(n, {'type': 'action-taken'})
+					else:
+						# Asking children for solving DCOP
+						self.printer(self.name+' miss')
+						for c in self.relayNode.children:
+							self.send(c, {'type': 'request-for-dcop'})
+						self.dcopPhase = 1
+				else:
+					raise 'last state is None'
 		
-		elif self.all_neighbours_took:
-			# Checking for good decision
-			powerLines = self.relayNode.get_powerLine_values()
-			powerLineValues = tuple([powerLines[pl] for pl in powerLines])
-			# check for goodness
-			if self.current_state[1] == powerLineValues:
-				self.done = True
-			else:
-				# Asking children for solving DCOP
-				for c in self.relayNode.children:
-					self.send(c, {'type': 'request-for-dcop'})
+			elif self.all_neighbours_took:
+				# Checking for good decision
+				powerLines = self.relayNode.get_powerLine_values()
+				powerLineValues = tuple([powerLines[pl] for pl in powerLines])
+				# check for goodness
+				if self.last_state[1] == powerLineValues:
+					self.done = True
+				else:
+					# Asking children for solving DCOP
+					self.printer(self.name+' miss')
+					for c in self.relayNode.children:
+						self.send(c, {'type': 'request-for-dcop'})
+					self.dcopPhase = 1
 			
+		elif self.dcopPhase == 3:
+			self.dcopPhase = 0
+			self.decision_made = True
+			self.done = True
 
 	def time_end(self):
 		self.decision_made = False
@@ -279,6 +314,7 @@ class Agent(threading.Thread):
 						raise Exception('No feasible solution')
 
 					self.commit_generators(bestPowerCost['generators'])
+					self.commit_children_powerLines({c:bestPowerCost['children'][c][0] for c in bestPowerCost['children']})
 					for c in bestPowerCost['children']:
 						self.send(c, {'type':'dydop-phase2', 'content':bestPowerCost['children'][c]})
 					self.dcopPhase = 3
@@ -361,6 +397,8 @@ class Agent(threading.Thread):
 				bestPowerCost = self.flowCoMap[self.dcopMessages]
 
 				self.commit_generators(bestPowerCost['generators'])
+				if not self.relayNode.isLeaf:
+					self.commit_children_powerLines({c:bestPowerCost['children'][c][0] for c in bestPowerCost['children']})
 
 				if not self.relayNode.isLeaf:
 					for c in bestPowerCost['children']:
@@ -377,3 +415,8 @@ class Agent(threading.Thread):
 	def commit_generators(self, gens):
 		for g in gens:
 			self.relayNode.generators[g].value = gens[g]
+
+	def commit_children_powerLines(self, lines):
+		for c in self.relayNode.children:
+			pl = self.relayNode.get_powerLine_to(c)
+			pl.value = lines[c]

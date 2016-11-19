@@ -10,7 +10,7 @@ opt_pattern = { '--temperature': {'name': 'temperature', 'type': 'float', 'defau
 				'--decay': {'name': 'decay', 'type': 'float', 'default': 1.0009},
 				'--alpha': {'name': 'alpha', 'type': 'float', 'default': 0.9},
 				'--gamma': {'name': 'gamma', 'type': 'float', 'default': 0.8},
-				'-t': {'name': 'tests', 'type': 'int', 'default': 0},
+				'-t': {'name': 'tests', 'type': 'int', 'default': 10},
 				'-l': {'name': 'trains', 'type': 'int', 'default': 50},
 				'-c': {'name': 'convergence_size', 'type': 'int', 'default': 30},
 				'-s': {'name': 'standard_deviation', 'type': 'float', 'default': 1.0},
