@@ -38,7 +38,7 @@ class FactorGraph:
 		
 		self.powerLines = {}
 		for pl in self.grid['powerLines']:
-			self.powerLines[pl] = PowerLine(self.grid['powerLines'][pl]['from'], self.grid['powerLines'][pl]['to'], self.grid['powerLines'][pl]['capacity'])
+			self.powerLines[pl] = PowerLine(pl, self.grid['powerLines'][pl]['from'], self.grid['powerLines'][pl]['to'], self.grid['powerLines'][pl]['capacity'])
 
 		children = set()
 		nodes = set()
@@ -232,3 +232,14 @@ class FactorGraph:
 	def dec(self, name):
 		if self.vars[name]['value'] > 0:
 			self.vars[name]['value'] -= 1
+
+	def get_levels(self):
+		return self.levels(self.root, 0)
+
+	def levels(self, n, l):
+		res = {n:l}
+		for c in self.nodes[n].children:
+			cres = self.levels(c, l+2)
+			for r in cres:
+				res[r] = cres[r]
+		return res

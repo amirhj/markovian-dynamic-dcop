@@ -98,7 +98,8 @@ class Resource:
 
 
 class PowerLine:
-	def __init__(self, fromNode, toNode, capacity):
+	def __init__(self, id, fromNode, toNode, capacity):
+		self.id = id
 		self.fromNode = fromNode
 		self.toNode = toNode
 		self.capacity = capacity

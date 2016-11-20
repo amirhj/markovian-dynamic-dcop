@@ -10,7 +10,7 @@ $(function() {
 			$('#message').append('<li><a href="#">'+a+'</a></li>');
 		}
 
-		for(var n in data.timeSteps) {
+		for(var n in data.timeSteps.test) {
 			$('#time').append('<li><a href="#">'+n+'</a></li>');
 		}
 
@@ -35,7 +35,80 @@ $(function() {
 });
 
 function showGrid() {
+	resetSceen();
 
+	nodes = new vis.DataSet(data.grid.nodes);
+    edges = new vis.DataSet(data.grid.edges);
+
+    var container = document.getElementById('sceen');
+    var grid = {
+      nodes: nodes,
+      edges: edges
+    };
+    var options = {
+      groups: {
+        generator: {
+          shape: 'image',
+          image: 'symbol_ac.gif',
+          size: 17,
+            font: {
+                size: 15,
+                color: '#ffffff'
+            },
+        },
+        intermittent: {
+          shape: 'image',
+          image: 'symbol_inter.png',
+          size: 17,
+            font: {
+                size: 15,
+                color: '#ffffff'
+            },
+        },
+        load: {
+          shape: 'triangle',
+          color: {background:'red',border:'white'},
+          size: 15,
+            font: {
+                size: 15,
+                color: '#ffffff'
+            },
+        },
+        node: {
+        	shape: 'dot',
+            size: 20,
+            font: {
+                size: 20,
+                color: '#ffffff'
+            },
+            borderWidth: 2,
+          color: 'rgb(0,255,140)'
+        }
+      },
+      edges: {
+      	width: 2,
+        font: {
+            size: 18,
+            color: '#ffffff'
+        }
+      },
+      nodes: {
+      	fixed: {x:false, y:true}
+      },
+      layout: {
+        hierarchical: {
+          direction: 'UD',
+          nodeSpacing: 150,
+          parentCentralization: false,
+          blockShifting: true
+        }
+      },
+	    interaction: {dragNodes :true},
+	    physics: {
+	        enabled: false
+	    },
+    };
+    network = new vis.Network(container, grid, options);
 }
 
 function resetSceen() {
@@ -46,28 +119,42 @@ function resetSceen() {
 }
 
 function showTime(t) {
-
-	
-}
-
-function showMessage(agent) {
 	resetSceen();
 	setHighchartsTheme();
+
+	var train = [];
+	var test = [];
+
+	for(var a in data.timeSteps.test[t]) {
+		test.push(data.timeSteps.test[t][a]);
+	}
+
+	for(var a in data.timeSteps.train[t]) {
+		train.push(data.timeSteps.train[t][a]);
+	}
+
+	var cats = [];
+	for(var a in data.agents) {
+		cats.push(a);
+	}
 
 	Highcharts.chart('sceen', {
         chart: {
             type: 'column'
         },
         title: {
-            text: 'Stacked column chart'
+            text: 'Number of Messages in Time t='+t
         },
         xAxis: {
-            categories: ['Apples', 'Oranges', 'Pears', 'Grapes', 'Bananas']
+            categories: cats,
+            title: {
+                text: 'Relay Nodes'
+            }
         },
         yAxis: {
             min: 0,
             title: {
-                text: 'Total fruit consumption'
+                text: 'Number of Messages'
             },
             stackLabels: {
                 enabled: true,
@@ -102,14 +189,83 @@ function showMessage(agent) {
             }
         },
         series: [{
-            name: 'John',
-            data: [5, 3, 4, 7, 2]
+            name: 'Train',
+            data: train
         }, {
-            name: 'Jane',
-            data: [2, 2, 3, 2, 1]
+            name: 'Test',
+            data: test
+        }]
+    });	
+}
+
+function showMessage(agent) {
+	resetSceen();
+	setHighchartsTheme();
+
+	var train = data.agents[agent].messages.train;
+	var test = data.agents[agent].messages.test;
+
+	var cats = [];
+	for(var i=0; i< test.length; i++) {
+		cats.push('t'+i);
+	}
+
+	Highcharts.chart('sceen', {
+        chart: {
+            type: 'column'
+        },
+        title: {
+            text: 'Number of Messages of Node '+agent
+        },
+        xAxis: {
+            categories: cats,
+            title: {
+                text: 'Time Steps'
+            }
+        },
+        yAxis: {
+            min: 0,
+            title: {
+                text: 'Number of Messages'
+            },
+            stackLabels: {
+                enabled: true,
+                style: {
+                    fontWeight: 'bold',
+                    color: (Highcharts.theme && Highcharts.theme.textColor) || 'gray'
+                }
+            }
+        },
+        legend: {
+            align: 'right',
+            x: -30,
+            verticalAlign: 'top',
+            y: 25,
+            floating: true,
+            backgroundColor: (Highcharts.theme && Highcharts.theme.background2) || 'white',
+            borderColor: '#CCC',
+            borderWidth: 1,
+            shadow: false
+        },
+        tooltip: {
+            headerFormat: '<b>{point.x}</b><br/>',
+            pointFormat: '{series.name}: {point.y}<br/>Total: {point.stackTotal}'
+        },
+        plotOptions: {
+            column: {
+                stacking: 'normal',
+                dataLabels: {
+                    enabled: true,
+                    color: (Highcharts.theme && Highcharts.theme.dataLabelsColor) || 'white'
+                }
+            }
+        },
+        series: [{
+            name: 'Train',
+            data: train
         }, {
-            name: 'Joe',
-            data: [3, 4, 4, 2, 5]
+            name: 'Test',
+            data: test
         }]
     });
 }
@@ -143,13 +299,35 @@ function showModel(agent) {
 		nodes.push({id: t, label: 't'+t, group: 'time-step', x: t*intraGroupGap, y: });
 	}*/
 
+	var maxY2 = 0
+
 	for(var t in data.agents[agent].states) {
+		var countY = 0;
 		for(var s in data.agents[agent].states[t]) {
 			var n = data.agents[agent].states[t][s];
-			nodes.push({id: t+'s-'+n.from, label: n.from, group: t, x: t*intraGroupGap, y: (maxY + parseInt(s))*interGroupGap + graphGap});
+			nodes.push({id: t+'-'+n.from, label: n.label, group: t, x: t*intraGroupGap, y: (maxY + parseInt(s))*interGroupGap + graphGap});
+			countY += 1;
 			for(var e in n.to) {
-				edges.push({from: t+'s-'+n.from, to: (parseInt(t)+1)+'s-'+n.to[e].to, label: n.to[e].prob, arrows: 'to'});				
+				edges.push({from: t+'-'+n.from, to: (parseInt(t)+1)+'-'+n.to[e].to, label: n.to[e].prob, arrows: 'to'});				
 			}
+		}
+		if(countY > maxY2) {
+			maxY2 = countY;
+		}
+	}
+
+	for(var t in data.agents[agent].values) {
+		var countY = 0;
+		for(var s in data.agents[agent].values[t]) {
+			var n = data.agents[agent].values[t][s];
+			nodes.push({id: t+'v-'+s, label: s, group: t, x: t*intraGroupGap, y: (maxY + maxY2 + parseInt(s))*interGroupGap + 2*graphGap});
+			countY += 1;
+			for(var e in n) {
+				edges.push({from: t+'v-'+s, to: (parseInt(t)+1)+'v-'+e, label: n[e]+'%', arrows: 'to'});				
+			}
+		}
+		if(countY > maxY2) {
+			maxY2 = countY;
 		}
 	}
 

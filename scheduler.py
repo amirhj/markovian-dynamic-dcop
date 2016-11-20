@@ -90,7 +90,7 @@ class Scheduler:
 
 		print 'Writing results...'
 
-		results = {'agents': {}, 'timeSteps': {'train':[], 'test':[]}}
+		results = {'grid': {'edges': [], 'nodes': []}, 'agents': {}, 'timeSteps': {'train':[], 'test':[]}}
 
 		for a in self.agents:
 			agent = self.agents[a]
@@ -136,6 +136,28 @@ class Scheduler:
 		for t in range(self.environment.num_time_steps):
 			results['timeSteps']['train'].append({a:self.message_server.timeLog[t][a] for a in self.agents})
 			results['timeSteps']['test'].append({a:self.message_server.timeLog[t][a] for a in self.agents})
+
+		levels = self.fg.get_levels()
+		for n in self.fg.nodes:
+			results['grid']['nodes'].append({'id':n, 'label':n, 'group':'node', 'level':levels[n]})
+			for c in self.fg.nodes[n].children:
+				pl = self.fg.nodes[n].get_powerLine_to(c)
+				results['grid']['edges'].append({'from':n, 'to':c, 'label':'%s[%d kW]' % (pl.id, pl.capacity)})
+
+			for g in self.fg.nodes[n].generators:
+				gen = self.fg.nodes[n].generators[g]
+				results['grid']['nodes'].append({'id':g, 'label':'%s [%d kW]' % (g, gen.maxValue), 'group':'generator', 'level':levels[n]+1})
+				results['grid']['edges'].append({'from':n, 'to':g})
+
+			for l in self.fg.nodes[n].loads:
+				load = self.fg.nodes[n].loads[l]
+				results['grid']['nodes'].append({'id':l, 'label':'%s [%d kW]' % (l, load), 'group':'load', 'level':levels[n]+1})
+				results['grid']['edges'].append({'from':n, 'to':l})
+
+			for r in self.fg.nodes[n].resources:
+				results['grid']['nodes'].append({'id':r, 'label':r, 'group':'intermittent', 'level':levels[n]+1})
+				results['grid']['edges'].append({'from':n, 'to':r})
+
 
 		folder = 'results/'+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		os.mkdir(folder)
