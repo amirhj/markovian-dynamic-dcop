@@ -39,7 +39,7 @@ class MessageServer(threading.Thread):
 				m = self.message_queue.get()
 
 				if self.opt['log_messages']:
-					self.logfile.write(str(m)+'\n\n\n')
+					self.logfile.write('%d %s\n\n\n' % (self.environment.get_time(), str(m)))
 
 				timeStep = self.environment.get_time()
 				if self.testMode:

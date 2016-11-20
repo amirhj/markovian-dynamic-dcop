@@ -9,6 +9,7 @@ class Environment:
 
 	def next_time_step(self):
 		self.time_count += 1
+		ss = self.time_step
 		self.time_step = self.time_count % self.num_time_steps
 
 	def reset(self):

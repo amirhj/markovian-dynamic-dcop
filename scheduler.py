@@ -21,6 +21,9 @@ class Scheduler:
 	def run(self):
 		#print "training..."
 		for i in xrange(self.opt['trains']):
+			for a in self.agents:
+				self.agents[a].paused = False
+
 			terminate = False
 			while not terminate:
 				terminate = True
@@ -29,9 +32,14 @@ class Scheduler:
 						terminate = False
 						break
 
-			print 'time step %d finished' % (i+1,)
+			for a in self.agents:
+				self.agents[a].paused = True
+
+			print 'time step %d finished %d' % (i+1, self.environment.get_time())
 
 			self.environment.next_time_step()
+			for r in self.fg.resources:
+				self.fg.resources[r].get_generation()
 			for a in self.agents:
 				self.agents[a].time_end()
 
@@ -42,6 +50,9 @@ class Scheduler:
 
 		print "\n\ntesting..."
 		for i in xrange(self.opt['tests']):
+			for a in self.agents:
+				self.agents[a].paused = False
+
 			terminate = False
 			while not terminate:
 				terminate = True
@@ -50,9 +61,14 @@ class Scheduler:
 						terminate = False
 						break
 
-			print 'time step %d finished' % (i+1,)
+			for a in self.agents:
+				self.agents[a].paused = True
+
+			print 'time step %d finished %d' % (i+1, self.environment.get_time())
 
 			self.environment.next_time_step()
+			for r in self.fg.resources:
+				self.fg.resources[r].get_generation()
 			for a in self.agents:
 				self.agents[a].time_end()
 

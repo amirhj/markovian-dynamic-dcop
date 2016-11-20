@@ -37,11 +37,13 @@ class Agent(threading.Thread):
 		self.generations = {}
 		self.powerLineValues = {}
 		self.generatorsValues = {}
+		self.paused = True
 	
 	def run(self):
 		while not self.terminate:
 			self.read_message()
-			self.process()
+			if not self.paused:
+				self.process()
 
 	def receive(self, sender, content):
 		self.message_queue.put((sender, content))
@@ -69,8 +71,9 @@ class Agent(threading.Thread):
 			elif m['type'] == 'request-for-dcop':
 				if self.dcopPhase == 0:
 					self.dcopPhase = 1
-					for c in self.relayNode.children:
-						self.send(c, {'type': 'request-for-dcop'})
+					for n in self.relayNode.neighbours:
+						if n != sender:
+							self.send(n, {'type': 'request-for-dcop'})
 				self.decision_made = False
 				self.done = False
 				
@@ -176,8 +179,8 @@ class Agent(threading.Thread):
 							self.send(n, {'type': 'action-taken'})
 					else:
 						# Asking children for solving DCOP
-						self.printer(self.name+' miss')
-						for c in self.relayNode.children:
+						self.printer('%d %s miss FUCK' % (self.environment.get_time(), self.name))
+						for c in self.relayNode.neighbours:
 							self.send(c, {'type': 'request-for-dcop'})
 						self.dcopPhase = 1
 				else:
@@ -192,8 +195,8 @@ class Agent(threading.Thread):
 					self.done = True
 				else:
 					# Asking children for solving DCOP
-					self.printer(self.name+' miss')
-					for c in self.relayNode.children:
+					self.printer('%d %s miss' % (self.environment.get_time(), self.name))
+					for c in self.relayNode.neighbours:
 						self.send(c, {'type': 'request-for-dcop'})
 					self.dcopPhase = 1
 			

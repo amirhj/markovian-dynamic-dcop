@@ -68,8 +68,6 @@ class Resource:
 		self.environment = environment
 		self.last_generation = 0
 		self.last_time = 0
-		if self.id == 'i0':
-			self.loglog = open('results/res.txt', 'w')
 
 	def get_generation(self):
 		#if self.id == 'i0':
@@ -82,18 +80,15 @@ class Resource:
 					for ns in s['to']:
 						disto[ns['to']] = ns['prob']
 					break
-
 			try:
 				ss = self.last_generation
 				self.last_generation = util.chooseFromDistribution(disto)
-				if self.last_generation == 0 and self.last_time != 4:
-					raise 'FUCK', self.last_time, timePeriod
 			except Exception as e:
-				if self.id == 'i0':
-					print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
-					print self.last_time, ss, self.last_generation, timePeriod, disto
-					print '****************************'
-					raise e
+				#if self.id == 'i0':
+				print 'vvvvvvvvvvvvvvvvvvvvvvvvvvvv'
+				print self.last_time, ss, self.last_generation, timePeriod, disto
+				print '****************************'
+				raise e
 			self.last_time = timePeriod
 		res = self.last_generation - 18
 		if res < 0:
