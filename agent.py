@@ -106,6 +106,7 @@ class Agent(threading.Thread):
 		return nextstates
 
 	def calculate_probs(self):
+		self.probabilities = {}
 		for t in self.transition_counter:
 			s = t[0]
 			b = 0

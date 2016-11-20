@@ -101,11 +101,33 @@ class Scheduler:
 			for t in range(self.environment.num_time_steps):
 				states = []
 				for s in agent.time_states[t]:
-					state = {'from': agent.generations[s], 'to':[]}
+					state = {'label': agent.generations[s], 'from':str(s), 'to':[]}
 					for ns in agent.next_states(s):
-						state['to'].append({'to': agent.generations[ns], 'prob':agent.probabilities[(s,ns)]})
+						state['to'].append({'to': str(ns), 'prob':agent.probabilities[(s,ns)]})
 					states.append(state)
 				results['agents'][a]['states'].append(states)
+
+			results['agents'][a]['values'] = []
+			for t in range(self.environment.num_time_steps):
+				fromStates = {}
+				for s in agent.time_states[t]:
+					gg = agent.generations[s]
+					if gg not in fromStates:
+						fromStates[gg] = {}
+
+					for ns in agent.next_states(s):
+						gg2 = agent.generations[ns]
+						if gg2 not in fromStates[gg]:
+							fromStates[gg][gg2] = 0
+
+						fromStates[gg][gg2] += agent.transition_counter[(s,ns)]
+
+				for s in fromStates:
+					pp = self.make_percentages(fromStates[s])
+					fromStates[s] = pp
+
+				results['agents'][a]['values'].append(fromStates)
+					
 
 			results['agents'][a]['messages'] = {}
 			results['agents'][a]['messages']['train'] = [self.message_server.agentLog[a][t] for t in range(self.environment.num_time_steps)]
@@ -122,3 +144,17 @@ class Scheduler:
 		res = open(folder+'/results.json', 'w')
 		res.write(json.dumps(results, indent=4))
 		res.close()
+
+	def make_percentages(self, cc):
+		result = {}
+		b = 0
+		for r in cc:
+			result[r] = cc[r]
+			b += cc[r]
+
+		b = float(b)
+
+		for r in cc:
+			result[r] = '%.2f' % (result[r] * 100 / b,)
+
+		return result
