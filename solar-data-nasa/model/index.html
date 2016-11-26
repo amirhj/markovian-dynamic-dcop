@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+    <title>Network | Groups</title>
+    <script src="resources/jquery.min.js" integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8=" crossorigin="anonymous"></script>
+    <style>
+        body {
+            color: #d3d3d3;
+            font: 12pt arial;
+            background-color: #222222;
+        }
+
+        #sceen {
+            width: 100%;
+            /*height: 800px;*/
+            background-color: #222222;
+        }
+    </style>
+
+    <script type="text/javascript" src="resources/vis.min.js"></script>
+    <link href="vis.min.css" rel="resources/stylesheet" type="text/css"/>
+    <script type="text/javascript">
+      var result = [];
+      $(function() {
+        $('#sceen').css('height', $(document).height());
+        $.getJSON('result.json', function(data){
+
+          var container = document.getElementById('sceen');
+            var grid = {
+                nodes: data.nodes,
+                edges: data.edges
+            };
+            var options = {
+                manipulation: false,
+                nodes: {
+                    shape: 'dot',
+                    size: 30,
+                    font: {
+                        size: 32,
+                        color: '#ffffff'
+                    },
+                    borderWidth: 2,
+                    shadow:true,
+                    fixed: {x:true,y:true}
+                },
+                edges: {
+                    width: 2,
+                    smooth: {
+                        type: 'continuous',
+                        roundness: 0
+                    },
+                    font: {align: 'horizontal'}
+                },
+                physics: false
+            };
+            network = new vis.Network(container, grid, options);
+
+        });
+      });
+
+    </script>
+</head>
+
+<body>
+<div id="sceen"></div>
+</body>
+</html>
