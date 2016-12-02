@@ -1,0 +1,190 @@
+{
+	"options": {
+		"number-of-time-steps": 5
+	},
+	"nodes": {
+		"v0": {
+			"children": [
+				"v1", "v2", "v3", "v4"
+			]
+		},
+		"v1": {
+			"children": []
+		},
+		"v2": {
+			"children": []
+		},
+		"v3": {
+			"children": []
+		},
+		"v4": {
+			"children": [
+				"v5"
+			]
+		},
+		"v5": {
+			"children": [
+				"v19", "v7", "v12"
+			]
+		},
+		"v6": {
+			"children": [
+				"v8"
+			]
+		},
+		"v7": {
+			"children": [
+				"v6"
+			]
+		},
+		"v8": {
+			"children": [
+				"v15"
+			]
+		},
+		"v9": {
+			"children": [
+				"v10"
+			]
+		},
+		"v10": {
+			"children": []
+		},
+		"v11": {
+			"children": [
+				"v13"
+			]
+		},
+		"v12": {
+			"children": [
+				"v11"
+			]
+		},
+		"v13": {
+			"children": [
+				"v9", "v14"
+			]
+		},
+		"v14": {
+			"children": []
+		},
+		"v15": {
+			"children": [
+				"v16"
+			]
+		},
+		"v16": {
+			"children": [
+				"v17"
+			]
+		},
+		"v17": {
+			"children": []
+		},
+		"v18": {
+			"children": []
+		},
+		"v19": {
+			"children": [
+				"v18"
+			]
+		}
+	},
+	"powerLines": {
+		"t0": {
+			"capacity": 100,
+			"from": "v0",
+			"to": "v1"
+		},
+		"t1": {
+			"capacity": 100,
+			"from": "v0",
+			"to": "v2"
+		},
+		"t2": {
+			"capacity": 100,
+			"from": "v0",
+			"to": "v3"
+		},
+		"t3": {
+			"capacity": 100,
+			"from": "v0",
+			"to": "v4"
+		},
+		"t4": {
+			"capacity": 100,
+			"from": "v4",
+			"to": "v5"
+		},
+		"t5": {
+			"capacity": 100,
+			"from": "v5",
+			"to": "v19"
+		},
+		"t6": {
+			"capacity": 100,
+			"from": "v5",
+			"to": "v7"
+		},
+		"t7": {
+			"capacity": 100,
+			"from": "v5",
+			"to": "v12"
+		},
+		"t8": {
+			"capacity": 100,
+			"from": "v7",
+			"to": "v6"
+		},
+		"t9": {
+			"capacity": 100,
+			"from": "v8",
+			"to": "v15"
+		},
+		"t10": {
+			"capacity": 100,
+			"from": "v9",
+			"to": "v10"
+		},
+		"t11": {
+			"capacity": 100,
+			"from": "v11",
+			"to": "v13"
+		},
+		"t12": {
+			"capacity": 100,
+			"from": "v12",
+			"to": "v11"
+		},
+		"t13": {
+			"capacity": 100,
+			"from": "v13",
+			"to": "v9"
+		},
+		"t14": {
+			"capacity": 100,
+			"from": "v13",
+			"to": "v14"
+		},
+		"t15": {
+			"capacity": 100,
+			"from": "v15",
+			"to": "v16"
+		},
+		"t16": {
+			"capacity": 100,
+			"from": "v16",
+			"to": "v17"
+		},
+		"t17": {
+			"capacity": 100,
+			"from": "v19",
+			"to": "v18"
+		},
+		"t18": {
+			"capacity": 100,
+			"from": "v6",
+			"to": "v8"
+		}
+	}
+}
