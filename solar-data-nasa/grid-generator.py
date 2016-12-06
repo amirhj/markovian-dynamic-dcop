@@ -63,6 +63,12 @@ for i in range(20):
 	r = 'i%d' % i
 	grid['resources'][r] = []
 
+	state = {'from': 0, 'to': []}
+	b = 1.0 / len(prob[m][1])
+	for s in prob[m][1]:
+		state['to'].append({"to": s, "prob": b})
+	grid['resources'][r].append([state])
+
 	for d in prob[m]:
 		states = []
 		for s in prob[m][d]:
@@ -74,6 +80,10 @@ for i in range(20):
 			states.append(state)
 
 		grid['resources'][r].append(states)
+
+	for s in grid['resources'][r][-1]:
+		del s['to'][:]
+		s['to'].append({"to": 0, "prob": 1.0})
 
 	if len(prob[m]) < minDay:
 		minDay = len(prob[m])
@@ -94,7 +104,7 @@ for i in range(20):
 	grid['generators'][g] = props['generators'][g]
 	grid['loads'][l] = props['loads'][l] * -1
 
-grid['options']['number-of-time-steps'] = minDay
+grid['options']['number-of-time-steps'] = minDay + 1
 
 sg = open('solar-grid.json', 'w')
 sg.write(json.dumps(grid))
