@@ -166,6 +166,10 @@ class Scheduler:
 		os.mkdir(folder)
 
 		res = open(folder+'/results.json', 'w')
+		res.write(json.dumps(results))
+		res.close()
+
+		res = open(folder+'/results-indented.json', 'w')
 		res.write(json.dumps(results, indent=4))
 		res.close()
 
