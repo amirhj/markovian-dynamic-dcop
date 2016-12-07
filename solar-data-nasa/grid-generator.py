@@ -1,7 +1,10 @@
-import sys, json
+import sys, json, random, util
 
 props = json.loads(open('prop.json', 'r').read())
 grid = json.loads(open('solar-grid-raw.json', 'r').read())
+
+health_prob = [0.8, 0.88, 0.9, 0.9, 0.92, 0.95, 0.95, 0.98, 0.98, 0.98, 0.98, 0.98, 0.98, 0.99, 0.99, 0.99, 1.0]
+surface = [5, 5, 6, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 12, 12, 13, 14, 15, 16]
 
 m = int(sys.argv[1])
 minDay = 100
@@ -22,7 +25,12 @@ for i in range(20):
 		if lineIndex > skipLine:
 			line = line.strip()
 			v = line.split(' ')
-			r = [int(v[0]), int(v[1]), int(v[2]), int(float(v[6]))]
+			r = [int(v[0]), int(v[1]), int(v[2]), float(v[6])]
+
+			r[-1] *= random.choice(surface)
+			if not util.flipCoin(random.choice(health_prob)):
+				r[-1] = 0
+			r[-1] = int(r[-1])
 
 			if p[1] not in result:
 				result[p[1]] = {}
