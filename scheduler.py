@@ -64,7 +64,9 @@ class Scheduler:
 			for a in self.agents:
 				self.agents[a].paused = True
 
-			print 'time step %d finished %d' % (i+1, self.environment.get_time())
+			tt = self.environment.get_time()
+			print 'time step %d finished %d' % (i+1, tt)
+			self.test_log.append({'time_step': tt, 'status': self.message_server.getMisses()})
 
 			self.environment.next_time_step()
 			for r in self.fg.resources:
@@ -158,10 +160,10 @@ class Scheduler:
 				results['grid']['nodes'].append({'id':r, 'label':r, 'group':'intermittent', 'level':levels[n]+1})
 				results['grid']['edges'].append({'from':n, 'to':r})
 
+		results['test_log'] = self.test_log
 
 		folder = 'results/'+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		os.mkdir(folder)
-		#os.mkdir(folder+'/evalues')
 
 		res = open(folder+'/results.json', 'w')
 		res.write(json.dumps(results, indent=4))

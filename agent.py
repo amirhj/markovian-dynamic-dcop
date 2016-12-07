@@ -52,7 +52,7 @@ class Agent(threading.Thread):
 		self.message_server.send(self.name, receiver, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 	def printer(self, c):
-		self.message_server.printer(c)
+		self.message_server.printer(c, self.name)
 
 	def read_message(self):
 		while not self.message_queue.empty():
@@ -180,7 +180,8 @@ class Agent(threading.Thread):
 							self.send(n, {'type': 'action-taken'})
 					else:
 						# Asking children for solving DCOP
-						self.printer('%d %s miss FUCK' % (self.environment.get_time(), self.name))
+						self.printer('%d %s miss Unknown' % (self.environment.get_time(), self.name))
+						self.test_log.append(2)
 						for c in self.relayNode.neighbours:
 							self.send(c, {'type': 'request-for-dcop'})
 						self.dcopPhase = 1
@@ -196,7 +197,8 @@ class Agent(threading.Thread):
 					self.done = True
 				else:
 					# Asking children for solving DCOP
-					self.printer('%d %s miss' % (self.environment.get_time(), self.name))
+					self.printer('%d %s miss Prediction' % (self.environment.get_time(), self.name))
+					self.test_log.append(1)
 					for c in self.relayNode.neighbours:
 						self.send(c, {'type': 'request-for-dcop'})
 					self.dcopPhase = 1

@@ -19,6 +19,8 @@ class MessageServer(threading.Thread):
 		self.agentLogTest = {}
 		self.timeLogTest = {}
 		self.testMode = False
+		self.missPrediction = []
+		self.missState = []
 
 	
 	def load(self, clients):
@@ -53,11 +55,21 @@ class MessageServer(threading.Thread):
 				#time.sleep(2)
 
 			if not self.print_queue.empty():
-				c = self.print_queue.get()
+				c,s = self.print_queue.get()
+				if 'Unknown' in c:
+					self.missState.append(s)
+				if 'Prediction' in c:
+					self.missPrediction.append(s)
 				print c
 	
 	def send(self, sender, receiver, content, sendtime):
 		self.message_queue.put((sender, receiver, content, sendtime))
 
-	def printer(self, c):
-		self.print_queue.put(c)
+	def printer(self, c, s):
+		self.print_queue.put((c, s))
+
+	def getMisses(self):
+		result = {'missPrediction': [a for a in self.missPrediction], 'missState': [a for a in self.missState]}
+		del self.missState[:]
+		del self.missPrediction[:]
+		return result
