@@ -35,7 +35,9 @@ class Scheduler:
 			for a in self.agents:
 				self.agents[a].paused = True
 
-			print 'time step %d finished %d' % (i+1, self.environment.get_time())
+			pp = 'time step %d finished %d' % (i+1, self.environment.get_time())
+			self.message_server.loggger(pp)
+			print pp
 
 			self.environment.next_time_step()
 			for r in self.fg.resources:
@@ -48,7 +50,9 @@ class Scheduler:
 		for a in self.agents:
 			self.agents[a].converged = True
 
-		print "\n\ntesting..."
+		pp = "\n\ntesting..."
+		self.message_server.loggger(pp)
+		print pp
 		for i in xrange(self.opt['tests']):
 			for a in self.agents:
 				self.agents[a].paused = False
@@ -65,7 +69,9 @@ class Scheduler:
 				self.agents[a].paused = True
 
 			tt = self.environment.get_time()
-			print 'time step %d finished %d' % (i+1, tt)
+			pp = 'time step %d finished %d' % (i+1, tt)
+			self.message_server.loggger(pp)
+			print pp
 			self.test_log.append({'time_step': tt, 'status': self.message_server.getMisses()})
 
 			self.environment.next_time_step()
@@ -90,7 +96,9 @@ class Scheduler:
 		sys.stdout.flush()
 		sys.stderr.flush()
 
-		print 'Writing results...'
+		pp = 'Writing results...'
+		self.message_server.loggger(pp)
+		print pp
 
 		results = {'grid': {'edges': [], 'nodes': []}, 'agents': {}, 'timeSteps': {'train':[], 'test':[]}}
 

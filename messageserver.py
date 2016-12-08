@@ -21,6 +21,8 @@ class MessageServer(threading.Thread):
 		self.testMode = False
 		self.missPrediction = []
 		self.missState = []
+		self.log_queue = Queue.Queue()
+		self.logger = open('logger.txt', 'w')
 
 	
 	def load(self, clients):
@@ -61,6 +63,10 @@ class MessageServer(threading.Thread):
 				if 'Prediction' in c:
 					self.missPrediction.append(s)
 				print c
+
+			if not self.log_queue.empty():
+				c = self.log_queue.get()
+				self.logger.write('%s\n' %c)
 	
 	def send(self, sender, receiver, content, sendtime):
 		self.message_queue.put((sender, receiver, content, sendtime))
@@ -73,3 +79,6 @@ class MessageServer(threading.Thread):
 		del self.missState[:]
 		del self.missPrediction[:]
 		return result
+
+	def loggger(self, c):
+		self.log_queue.put(c)
